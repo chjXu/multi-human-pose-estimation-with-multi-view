@@ -39,12 +39,17 @@ public:
     Associate();
     ~Associate();
 
+    enum Mode{
+        triangulation,
+        OpenCV,
+        Ceres
+    };
     /**
      * @brief 执行程序运行
      * @param single
      * @return ** void
      */
-    void run(int reference, int target, bool single=false);
+    void run(int reference, int target, bool single=false, Mode& mode);
 
     /**
      * @brief 添加每一帧不同视角捕获到的姿态信息
@@ -92,14 +97,14 @@ protected:
      * 输入：两帧图像数据
      * 输出：修改一个公共3维姿态
      */
-    void fusionOfFirstFrame(vector<Pose>& pose_1, vector<Pose>& pose_2);
+    void fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2);
 
     /**
      * @brief 数据融合
      * 输入：3D关节和其它2D信息
      * 输出：修改一个公共3维姿态
      */
-    void fusionOfIncremental(vector<Joint_3d>& , vector<Pose>& );
+    void fusionOfIncremental(int , int);
 
     /**
      * @brief 计算置信度
@@ -277,9 +282,14 @@ private:
     Eigen::Matrix3d R;
     Eigen::Matrix<double, 3, 1> t;
 
+    // 优化器
     ceres::Solver::Options options;
 
 
     // Another method of tf listener
     tf::TransformListener *tf_listener;
+
+    int reference, target;
+
+    Mode mode;
 };

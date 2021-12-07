@@ -1,6 +1,6 @@
 #pragma once
 #include <iostream>
-#Include <cmath>
+#include <cmath>
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/Geometry>
 
@@ -10,24 +10,39 @@ public:
     Eigen::Matrix3d R;
     Eigen::Matrix<double, 3, 1> t;
 
-    DataSetCamera():fx(0.0), fy(0.0), cx(0.0), cy(0.0), id(-1){}
-    ~DataSetCamera(){}
+    DataSetCamera();
+    ~DataSetCamera();
 
+    /**
+     * @brief 返回ID
+     * @param
+     * @return int
+    */
     int getID() const{
-        return id;
+        return this->id;
     }
 
-    void setID(const int id){
-        this->id = id;
-    }
+    /**
+     * @brief 设置ID
+     * @param id
+     * @return void
+    */
+    void setID(const int id);
 
-    bool invalid() const {
-        return !isZero(fx) && !isZero(fy) && !isZero(cx) && !isZero(cy);
-    }
+    /**
+     * @brief 判断对象是否有效
+     * @param
+     * @return bool
+    */
+    bool valid() const;
+
 private:
     int id;
 
-    bool isZero(double &a){
-        return abs(a) > 1e-4;
-    }
+    /**
+     * @brief 判断数值是否为0
+     * @param number
+     * @return bool
+    */
+    bool isZero(const double &a) const;
 };

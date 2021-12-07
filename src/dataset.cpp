@@ -233,7 +233,7 @@ int main(int argc, char** argv){
 
             // 匹配
             ass->addPoseInfo(dataset->getPoses());
-            ass->run();
+            if(i != 0)  ass->run(0, i);
 
             vis->addImage(dataset->getImage());
 

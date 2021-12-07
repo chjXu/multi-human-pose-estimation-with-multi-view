@@ -169,7 +169,7 @@ target_link_libraries(${PROJECT_NAME}
 
 #add_executable(${PROJECT_NAME}_node src/main.cpp)
 
-add_executable(datatset  
+add_executable(datatset
   src/camera.cpp
   src/pose.cpp
   src/vis.cpp
@@ -178,6 +178,7 @@ add_executable(datatset
   src/associate.cpp
   src/posePair.cpp
   src/optimizer.cpp
+  src/datasetCameras.cpp
 )
 
 ## Rename C++ executable without prefix
