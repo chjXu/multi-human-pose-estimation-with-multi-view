@@ -52,8 +52,8 @@ public:
         Cam_point2(0,0) = (T(observe_point2.x) - DC2.cx) * Cam_point2(2,0) / DC2.fx;
         Cam_point2(1,0) = (T(observe_point2.y) - DC2.cy) * Cam_point2(2,0) / DC2.fy;
 
-        World_point1 = DC1.R.cast<T>() * Cam_point1 + DC1.t.cast<T>();
-        World_point2 = DC2.R.cast<T>() * Cam_point2 + DC2.t.cast<T>();
+        World_point1 = DC1.R.cast<T>() * Cam_point1 + DC1.t.cast<T>() / T(100.0);
+        World_point2 = DC2.R.cast<T>() * Cam_point2 + DC2.t.cast<T>() / T(100.0);
 
         residual[0] = ((World_point1(0,0) - World_point2(0,0)) * (World_point1(0,0) - World_point2(0,0))
                     +(World_point1(1,0) - World_point2(1,0)) * (World_point1(1,0) - World_point2(1,0))

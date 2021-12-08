@@ -128,27 +128,30 @@ void Associate::triangularCamera(int reference, int target, const Mode& mode){
     }
     else if (mode == Mode::Ceres){
         // 这里使用ROS框架下的tf
-        tf::StampedTransform transform;
+        while(ros::ok()){
+            tf::StampedTransform transform;
 
-        tf_listener->waitForTransform("camera_" + to_string(reference),
-                                      "camera_" + to_string(target),
-                                      ros::Time(0),
-                                      ros::Duration(1.0));
-        tf_listener->lookupTransform("camera_" + to_string(reference),
-                                     "camera_" + to_string(target),
-                                     ros::Time(0),
-                                     transform);
+            tf_listener->waitForTransform("camera_" + to_string(reference),
+                                          "camera_" + to_string(target),
+                                          ros::Time(0),
+                                          ros::Duration(1.0));
+            tf_listener->lookupTransform("camera_" + to_string(reference),
+                                         "camera_" + to_string(target),
+                                         ros::Time(0),
+                                         transform);
 
-        tf::Quaternion q_f = transform.getRotation();
-        tf::Vector3 trans_f = transform.getOrigin();
+            tf::Quaternion q_f = transform.getRotation();
+            tf::Vector3 trans_f = transform.getOrigin();
 
-        Eigen::Quaterniond q(q_f.getW(), q_f.getX(), q_f.getY(), q_f.getZ());
-        Eigen::Vector3d trans(trans_f.getX(), trans_f.getY(), trans_f.getZ());
+            Eigen::Quaterniond q(q_f.getW(), q_f.getX(), q_f.getY(), q_f.getZ());
+            Eigen::Vector3d trans(trans_f.getX(), trans_f.getY(), trans_f.getZ());
 
-        this->R = q.toRotationMatrix();
-        this->t = trans;
+            this->R = q.toRotationMatrix();
+            this->t = trans;
 
-        listening = true;
+            listening = true;
+            break;
+        }
     }else{
         ROS_ERROR("Mode error.");
     }
@@ -172,8 +175,17 @@ void Associate::fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2){
     if(this->pose_pairs.empty())
         return;
 
-    for(PosePair it : this->pose_pairs){
-        calculateCorrespondence(it);
+    for(auto it = pose_pairs.begin(); it != pose_pairs.end(); ++it){
+        calculateCorrespondence(*it);
+    }
+
+    int count = 1;
+    for(auto it = pose_pairs.begin(); it != pose_pairs.end(); ++it){
+        ROS_INFO("Pair: %d, and index_1: %d, index_2: %d, label_1: %d, label_2: %d, score is: %f.",
+                  count, (*it).getIndex_1(), (*it).getIndex_2(), (*it).getLabel_1(), (*it).getLabel_2(),
+                  (*it).getDelta());
+
+        ++count;
     }
 
     auto rank_min = min_element(pose_pairs.begin(), pose_pairs.end(), PosePair::comp);
@@ -181,13 +193,15 @@ void Associate::fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2){
     double threshold = 0.4;
 
     while(!pose_pairs.empty() && rank_min->getDelta() <= threshold){
+        rank_min = min_element(pose_pairs.begin(), pose_pairs.end(), PosePair::comp);
+
         int label_1_old = (*rank_min).getLabel_1();
         int label_2_old = (*rank_min).getLabel_2();
         int id_1 = (*rank_min).getIndex_1();
         int id_2 = (*rank_min).getIndex_2();
 
         ROS_INFO("The pose %d of camera %d, and the pose %d of camera %d will be paired.",
-                this->reference, id_1, this->target, id_2);
+                this->reference, id_1, id_2, this->target);
 
         this->inputs[reference][id_1].setLabel(label_ite);
         this->inputs[target][id_2].setLabel(label_ite);
@@ -201,15 +215,20 @@ void Associate::fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2){
             }
         }
 
-        rank_min = min_element(pose_pairs.begin(), pose_pairs.end(), PosePair::comp);
         ++label_ite;
     }
+
+    ROS_INFO("Finish pairing.");
 }
 
 
 bool Associate::calculateCorrespondence(PosePair &pair, const double & threshold){
     pair.setDelta(0.1);
-    return true;
+
+    if(pair.getDelta() <= threshold)
+        return true;
+    else
+        return false;
 }
 
 vector<pair<int, int> > Associate::extract2DAssociation(){
@@ -219,14 +238,14 @@ vector<pair<int, int> > Associate::extract2DAssociation(){
         Pose pose_1 = this->inputs[this->reference][i];
         if(pose_1.getLabel() < 0) continue;
 
-        for(int j = 0; i < this->inputs[this->target].size(); ++j){
+        for(int j = 0; j < this->inputs[this->target].size(); ++j){
             Pose pose_2 = this->inputs[this->target][j];
             if(pose_2.getLabel() < 0) continue;
-            {
-                if(pose_1.getLabel() == pose_2.getLabel()){
-                    pose_ass.push_back(pair<int, int>(i, j));
-                }
+
+            if(pose_1.getLabel() == pose_2.getLabel()){
+                pose_ass.emplace_back(std::pair<int, int>(i, j));
             }
+
         }
     }
 
@@ -243,12 +262,13 @@ void Associate::calcualte3DPose(vector<pair<int, int> > & poses_ass, const Mode&
         vector<Joint_2d> pose_1 = this->inputs[this->reference][pair.first].get2DPose();
         vector<Joint_2d> pose_2 = this->inputs[this->target][pair.second].get2DPose();
 
-        if(pose_1.size() == pose_2.size())
+        if(pose_1.size() != pose_2.size())
             ROS_ERROR("The joint number of paired pose is not same.");
 
         vector<vector<double> > depths(2);
 
         if(mode == Mode::Ceres){
+            ROS_INFO("Start with ceres solver.");
             for(int i=0; i<pose_1.size(); ++i){
                 vector<double> depth = OptimizerWithCereSolver(pose_1[i], pose_2[i], this->reference, this->target);
 
@@ -325,6 +345,7 @@ vector<Joint_3d> Associate::average(const Pose& pose_1, const Pose& pose_2){
         joint_3d.x = (pose_3d_1[i].x * pose_2d_1[i].p + pose_3d_2[i].x * pose_2d_2[i].p) / (pose_2d_1[i].p + pose_2d_2[i].p);
         joint_3d.y = (pose_3d_1[i].y * pose_2d_1[i].p + pose_3d_2[i].y * pose_2d_2[i].p) / (pose_2d_1[i].p + pose_2d_2[i].p);
         joint_3d.z = (pose_3d_1[i].z * pose_2d_1[i].p + pose_3d_2[i].z * pose_2d_2[i].p) / (pose_2d_1[i].p + pose_2d_2[i].p);
+        joint_3d.available = true;
 
         new_pose.push_back(joint_3d);
     }

@@ -157,9 +157,9 @@ void Vis::drawSkeletons(const vector<Pose> &skeletons, const DataSetCamera& DC){
             line_list.action = visualization_msgs::Marker::ADD;
             line_list.pose.orientation.w = 1.0;
 
-            line_list.scale.x = 0.1;
-            line_list.scale.y = 0.1;
-            line_list.scale.z = 0.1;
+            line_list.scale.x = 0.01;
+            line_list.scale.y = 0.01;
+            line_list.scale.z = 0.01;
             line_list.color.r = 1.0;
             line_list.color.a = 1.0;
 
@@ -168,7 +168,7 @@ void Vis::drawSkeletons(const vector<Pose> &skeletons, const DataSetCamera& DC){
                 drawLine(line_list, pub_pose, body_edges[edge][0], body_edges[edge][1]);
             }
 
-            // cout << line_list.points.size() << endl;
+            cout << line_list.points.size() << endl;
             pose_pub->publish(line_list);
             ROS_INFO("Info has published.");
         }
@@ -181,13 +181,13 @@ void Vis::drawLine(visualization_msgs::Marker& line_list, const vector<Joint_3d>
     // cout << pose_3d[a].available  << " " << pose_3d[b].available << endl;
     if(pose_3d[a].available && pose_3d[b].available) {
         geometry_msgs::Point p_a,p_b;
-        p_a.x = pose_3d[a].x / 100;
-        p_a.y = pose_3d[a].y / 100;
-        p_a.z = pose_3d[a].z / 100;
+        p_a.x = pose_3d[a].x;
+        p_a.y = pose_3d[a].y;
+        p_a.z = pose_3d[a].z;
 
-        p_b.x = pose_3d[b].x / 100;
-        p_b.y = pose_3d[b].y / 100;
-        p_b.z = pose_3d[b].z / 100;
+        p_b.x = pose_3d[b].x;
+        p_b.y = pose_3d[b].y;
+        p_b.z = pose_3d[b].z;
 
         line_list.points.push_back(p_a);
         line_list.points.push_back(p_b);
