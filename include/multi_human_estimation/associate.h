@@ -11,6 +11,7 @@
 #include <iostream>
 #include <vector>
 #include <list>
+#include <map>
 
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>
@@ -33,23 +34,23 @@
 
 using namespace std;
 
+enum Mode{
+    triangulation,
+    OpenCV,
+    Ceres
+};
+
 class Associate
 {
 public:
     Associate();
     ~Associate();
-
-    enum Mode{
-        triangulation,
-        OpenCV,
-        Ceres
-    };
     /**
      * @brief 执行程序运行
      * @param single
      * @return ** void
      */
-    void run(int reference, int target, bool single=false, Mode& mode);
+    void run(int reference, int target, bool single=false, const Mode&& mode = Mode::triangulation);
 
     /**
      * @brief 添加每一帧不同视角捕获到的姿态信息
@@ -151,6 +152,13 @@ protected:
     vector<pair<int, int> > extract2DAssociation();
 
     /**
+     * @description:计算正确配对姿态的3D姿态
+     * @param {vector<vector<int> > &}
+     * @return {*}
+     */
+    void calcualte3DPose(vector<pair<int, int> > &, const Mode& );
+
+    /**
      * @description:
      * @param {vector<pair<int, int> >} &
      * @param {int} reference
@@ -173,7 +181,7 @@ protected:
      * @param {int} target
      * @return {*}
      */
-    void triangularCamera(const int reference, const int target);
+    void triangularCamera(const int reference, const int target, const Mode& mode);
 
     /**
      * @description:
@@ -196,7 +204,7 @@ protected:
      * @param {*}
      * @return {*}
      */
-    void averageProcess(vector<Pose>& set_1, vector<Pose>& set_2, pair<int, int>&);
+    void averageProcess(vector<Pose>& set_1, vector<Pose>& set_2, vector<pair<int, int> >&);
 
     /**
      * @description:
@@ -290,6 +298,4 @@ private:
     tf::TransformListener *tf_listener;
 
     int reference, target;
-
-    Mode mode;
 };

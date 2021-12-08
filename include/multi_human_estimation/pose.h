@@ -21,7 +21,7 @@ struct Joint_2d
     float y;
     float p;
 
-    Joint_2d():x(0.0), y(0.0), p(0.0){}
+    Joint_2d():x(0.0), y(0.0), p(0.5){}
 };
 
 struct Root_3d
@@ -92,7 +92,7 @@ public:
      */
     // get2Dpose
     vector<Joint_2d> get2DPose() const{
-        return pose_2d;
+        return this->pose_2d;
     }
 
     /**
@@ -101,7 +101,7 @@ public:
      * @return {*}
      */
     vector<Root_3d> getRootPose() const{
-        return root_3d;
+        return this->root_3d;
     }
 
     /**
@@ -129,6 +129,14 @@ public:
      * @return {*}
      */
     void update3DPose(vector<cv::Point3d> &points3d, DataSetCamera &DC, bool );
+
+    /**
+     * @description:
+     * @param {vector<Joint_3d>} &points3d
+     * @param {DataSetCamera} &DC
+     * @return {*}
+     */
+    void update3DPose(vector<Joint_3d> &joint3d, DataSetCamera &DC, bool );
 
     /**
      * @description:
@@ -174,6 +182,15 @@ public:
      */
     bool getUpdated() const{
         return this->updated;
+    }
+
+    /**
+     * @description: 判断姿态是否有效
+     * @param {*}
+     * @return {*}
+     */
+    bool empty() const{
+        return (pose_3d.empty() || pose_2d.empty());
     }
 private:
     int camera_id;

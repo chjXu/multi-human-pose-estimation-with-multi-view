@@ -8,7 +8,7 @@
  */
 #include <multi_human_estimation/pose.h>
 
-Pose::Pose():camera_id(-1), label(0), updated(false){
+Pose::Pose():camera_id(-1), label(-1), updated(false){
 
 }
 
@@ -51,34 +51,52 @@ void Pose::setRootPose(vector<double> &root){
     }
 }
 
+void Pose::update3DPose(vector<Joint_3d> &joint3d, DataSetCamera &DC, bool worldOrCamera){
+    if(joint3d.empty()) return;
+
+    this->pose_3d = joint3d;
+
+    updated = true;
+
+    if(worldOrCamera){
+        for(int i=0; i<pose_3d.size(); ++i){
+            Eigen::Matrix<double, 3, 1> tmp =
+                DC.R * Eigen::Matrix<double, 3, 1>(pose_3d[i].x, pose_3d[i].y, pose_3d[i].z) + DC.t/100;
+            pose_3d[i].x = tmp(0, 0);
+            pose_3d[i].y = tmp(1, 0);
+            pose_3d[i].z = tmp(2, 0);
+        }
+    }
+}
+
 void Pose::update3DPose(vector<double> &depth, DataSetCamera &DC, bool worldOrCamera){
     if(depth.empty()) return;
-    
+
     pose_3d.resize(pose_2d.size());
 
     for(int i=0; i<pose_2d.size(); ++i){
         if(depth[i] < 1e-3) continue;
         pose_3d[i].z = depth[i];
         pose_3d[i].x = ( pose_2d[i].x - DC.cx ) * pose_3d[i].z / DC.fx;
-        pose_3d[i].y = ( pose_2d[i].y - DC.cy ) * pose_3d[i].z / DC.fy; 
+        pose_3d[i].y = ( pose_2d[i].y - DC.cy ) * pose_3d[i].z / DC.fy;
     }
 
     updated = true;
 
     if(worldOrCamera){
         for(int i=0; i<pose_3d.size(); ++i){
-            Eigen::Matrix<double, 3, 1> tmp = 
-                DC.R.transpose() * (Eigen::Matrix<double, 3, 1>(pose_3d[i].x, pose_3d[i].y, pose_3d[i].z) - DC.t/100);
+            Eigen::Matrix<double, 3, 1> tmp =
+                DC.R * Eigen::Matrix<double, 3, 1>(pose_3d[i].x, pose_3d[i].y, pose_3d[i].z) + DC.t/100;
             pose_3d[i].x = tmp(0, 0);
             pose_3d[i].y = tmp(1, 0);
-            pose_3d[i].z = tmp(2, 0); 
+            pose_3d[i].z = tmp(2, 0);
         }
     }
 }
 
 void Pose::update3DPose(vector<cv::Point3d> &points3d, DataSetCamera &DC, bool worldOrCamera){
     if(points3d.empty()) return;
-    
+
     // pose_3d.resize(pose_2d.size());
 
     this->pose_3d.clear();
@@ -97,8 +115,8 @@ void Pose::update3DPose(vector<cv::Point3d> &points3d, DataSetCamera &DC, bool w
 
     cout << "In Pose.cpp" << endl;
     for(auto it:this->pose_3d){
-        cout << "X: " << it.x << 
-                "  Y: " << it.y << 
+        cout << "X: " << it.x <<
+                "  Y: " << it.y <<
                 "  Z: " << it.z << endl;
     }
 
@@ -110,14 +128,14 @@ void Pose::update3DPose(vector<cv::Point3d> &points3d, DataSetCamera &DC, bool w
             Eigen::Matrix<double, 3, 1> tmp = DC.R.transpose() * (cam_joint - DC.t/100);
             pose_3d[i].x = tmp(0, 0);
             pose_3d[i].y = tmp(1, 0);
-            pose_3d[i].z = tmp(2, 0); 
+            pose_3d[i].z = tmp(2, 0);
         }
     }
 
     cout << "In World" << endl;
     for(auto it:this->pose_3d){
-        cout << "X: " << it.x << 
-                "  Y: " << it.y << 
+        cout << "X: " << it.x <<
+                "  Y: " << it.y <<
                 "  Z: " << it.z << endl;
     }
 
@@ -162,7 +180,7 @@ void Pose::set3DPose(vector<Eigen::Matrix<double, 3, 1> >& pose_3d){
 
 void Pose::set3DPose(const vector<Joint_3d>& pose_3d){
     if(pose_3d.empty()) return;
-    
+
     this->pose_3d = pose_3d;
 
     updated = true;
@@ -170,7 +188,7 @@ void Pose::set3DPose(const vector<Joint_3d>& pose_3d){
 
 void Pose::set3DPose(const vector<cv::Point3d>& pose_3d){
     if(pose_3d.empty()) return;
-    
+
     for(int i=0; i<pose_3d.size(); ++i){
         Joint_3d joint;
         joint.x = pose_3d[i].x;
@@ -181,4 +199,3 @@ void Pose::set3DPose(const vector<cv::Point3d>& pose_3d){
         this->pose_3d.push_back(joint);
     }
 }
-

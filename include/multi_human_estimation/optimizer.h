@@ -18,7 +18,7 @@
 class CostFunction_cam_2d_2d{//仿函数
 public:
    /**
-    * @description: 
+    * @description:
     * @param {Joint_2d} _observe_point1
     * @param {Joint_2d} _observe_point2
     * @param {DataSetCamera} _DC1
@@ -28,18 +28,18 @@ public:
   	CostFunction_cam_2d_2d(Joint_2d _observe_point1, Joint_2d _observe_point2, DataSetCamera _DC1, DataSetCamera _DC2);
 
     /**
-     * @description: 
+     * @description:
      * @param {*}
      * @return {*}
-     */    
+     */
     ~CostFunction_cam_2d_2d();
 
     // 残差的计算
     /**
-     * @description: 
+     * @description:
      * @param {*}
      * @return {*}
-     */    
+     */
     template <typename T>
     bool operator()(const T *const depths, T *residual) const{
         Eigen::Matrix<T,3,1> Cam_point1, Cam_point2;
