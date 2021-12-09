@@ -129,25 +129,49 @@ void Associate::triangularCamera(int reference, int target, const Mode& mode){
     else if (mode == Mode::Ceres){
         // 这里使用ROS框架下的tf
         while(ros::ok()){
-            tf::StampedTransform transform;
+            tf::StampedTransform transform_ref, transform_tar;
 
-            tf_listener->waitForTransform("camera_" + to_string(reference),
-                                          "camera_" + to_string(target),
+            tf_listener->waitForTransform("world",
+                                          "camera_" + to_string(reference),
                                           ros::Time(0),
                                           ros::Duration(1.0));
-            tf_listener->lookupTransform("camera_" + to_string(reference),
+            tf_listener->lookupTransform("world",
+                                         "camera_" + to_string(reference),
+                                         ros::Time(0),
+                                         transform_ref);
+
+            tf_listener->waitForTransform("world",
                                          "camera_" + to_string(target),
                                          ros::Time(0),
-                                         transform);
+                                         ros::Duration(1.0));
+            tf_listener->lookupTransform("world",
+                                         "camera_" + to_string(target),
+                                        ros::Time(0),
+                                        transform_tar);
 
-            tf::Quaternion q_f = transform.getRotation();
-            tf::Vector3 trans_f = transform.getOrigin();
+            // cout << "R_ref: " << this->cameras[reference].R << endl;
+            // cout << "t_ref: " << this->cameras[reference].t << endl;
+            // cout << endl;
 
-            Eigen::Quaterniond q(q_f.getW(), q_f.getX(), q_f.getY(), q_f.getZ());
-            Eigen::Vector3d trans(trans_f.getX(), trans_f.getY(), trans_f.getZ());
 
-            this->R = q.toRotationMatrix();
-            this->t = trans;
+
+            tf::Quaternion q_r = transform_ref.getRotation();
+            tf::Vector3 trans_r = transform_ref.getOrigin();
+
+            tf::Quaternion q_t = transform_ref.getRotation();
+            tf::Vector3 trans_t = transform_ref.getOrigin();
+
+            Eigen::Quaterniond q_ref(q_r.getW(), q_r.getX(), q_r.getY(), q_r.getZ());
+            Eigen::Vector3d trans_ref(trans_r.getX(), trans_r.getY(), trans_r.getZ());
+
+            Eigen::Quaterniond q_tar(q_t.getW(), q_t.getX(), q_t.getY(), q_t.getZ());
+            Eigen::Vector3d trans_tar(trans_t.getX(), trans_t.getY(), trans_t.getZ());
+
+            // this->R = q.toRotationMatrix();
+            // this->t = trans;
+
+            this->cameras[reference].updateTransformation(q_ref.toRotationMatrix(), trans_ref);
+            this->cameras[target].updateTransformation(q_tar.toRotationMatrix(), trans_tar);
 
             listening = true;
             break;
@@ -270,6 +294,8 @@ void Associate::calcualte3DPose(vector<pair<int, int> > & poses_ass, const Mode&
         if(mode == Mode::Ceres){
             ROS_INFO("Start with ceres solver.");
             for(int i=0; i<pose_1.size(); ++i){
+                cout << "Joint: " << i << " pixel location: " << pose_1[i].x << " " << pose_1[i].y << "  "
+                                                             << pose_2[i].x << " " << pose_2[i].y << endl;
                 vector<double> depth = OptimizerWithCereSolver(pose_1[i], pose_2[i], this->reference, this->target);
 
                 cout << "Ceres: " << depth[0] << " " << depth[1] << endl;
@@ -291,8 +317,8 @@ void Associate::calcualte3DPose(vector<pair<int, int> > & poses_ass, const Mode&
 }
 
 
-vector<double> Associate::OptimizerWithCereSolver(const Joint_2d point_1, const Joint_2d point_2, const int reference, const int target){
-    double depth[2] = {0.5, 0.5};
+vector<double> Associate::OptimizerWithCereSolver(const Joint_2d& point_1, const Joint_2d& point_2, const int reference, const int target){
+    double depth[2] = {};
 
 	ceres::Problem problem;
 	problem.AddResidualBlock(     // 向问题中添加误差项
@@ -305,12 +331,12 @@ vector<double> Associate::OptimizerWithCereSolver(const Joint_2d point_1, const 
       	  nullptr,            // 核函数，这里不使用，为空
       	  depth              // 待估计参数
     	);
-    //problem.SetParameterLowerBound(depth, 0, 0.0);
-    //problem.SetParameterLowerBound(depth, 1, 0.0);
+    // problem.SetParameterLowerBound(depth, 0, 0.0);
+    // problem.SetParameterLowerBound(depth, 1, 0.0);
 
 	ceres::Solver::Summary summary;
 	ceres::Solve(options, &problem, &summary);
-    //cout << summary.BriefReport() << endl;
+    // cout << summary.FullReport() << endl;
 
     return {depth[0], depth[1]};
 }

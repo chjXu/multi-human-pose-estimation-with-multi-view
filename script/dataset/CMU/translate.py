@@ -90,9 +90,9 @@ def draw_skeletons( im, bframe, cam ):
             # This is an outlier.
             continue
 
-        
+
         skel = np.array(body['joints19']).reshape((-1,4)).transpose()
-        
+
 
         # Project skeleton into view
         pt = cv2.projectPoints(skel[0:3,:].transpose().copy(),
@@ -116,15 +116,15 @@ def draw_skeletons( im, bframe, cam ):
 def convert_wc_to_cc(X,R, t):
     """ Projects points X (3xN) using camera intrinsics K (3x3),
     extrinsics (R,t) and distortion parameters Kd=[k1,k2,p1,p2,k3].
-    
+
     Roughly, x = K*(R*X + t) + distortion
-    
+
     See http://docs.opencv.org/2.4/doc/tutorials/calib3d/camera_calibration/camera_calibration.html
     or cv2.projectPoints
     """
-    
+
     x = np.asarray(R*X + t)
-    
+
     return x
 
 
@@ -159,7 +159,7 @@ def convert_wc_to_cc(X,R, t):
 
 '''
 
-def translate( im, bframe,img_path, cam, panel,node,frame,seq_name ):
+def translate( im, bframe,img_path, cam, panel,node,frame,seq_name, write):
     """Plot skeletons onto image"""
 
     outputfile = './data/' + str(node)
@@ -184,7 +184,7 @@ def translate( im, bframe,img_path, cam, panel,node,frame,seq_name ):
                 'id':0,
                 'joint_3d':[]
             }}
-    
+
     dict['img_path'] = img_path
 
     for body in bframe['bodies']:
@@ -192,9 +192,9 @@ def translate( im, bframe,img_path, cam, panel,node,frame,seq_name ):
             # This is an outlier.
             continue
 
-        
+
         skel = np.array(body['joints19']).reshape((-1,4)).transpose()   # 这是世界坐标系下的三维点，即gt值
-        
+
         dict['camera']['id'] = cam['node']
         dict['camera']['K'] = cam['K']
         dict['camera']['D'] = cam['distCoef']
@@ -218,7 +218,7 @@ def translate( im, bframe,img_path, cam, panel,node,frame,seq_name ):
         pt = cv2.projectPoints(skel[0:3,:].transpose().copy(),
                       cv2.Rodrigues(cam['R'])[0], cam['t'], cam['K'],
                       cam['distCoef'])
-        
+
 
         pt = np.squeeze(pt[0], axis=1).transpose()
 
@@ -241,16 +241,17 @@ def translate( im, bframe,img_path, cam, panel,node,frame,seq_name ):
                 cv2.line(im,
                 tuple(pt[0:2,edge[0]].astype(int)),
                 tuple(pt[0:2,edge[1]].astype(int)), col, 2)
-        
+
         cv2.imshow("img", im)
         cv2.waitKey(1000)
 
-    json_str = json.dumps(dict, cls=MyEncoder)
-    if outputfile is not None:
-        json_path = outputfile + '/{0:02d}_{1:08d}.json'.format(node,frame)
-        print('Writing {0}'.format(outputfile))
-    with open(json_path,'w') as json_file:
-        json_file.write(json_str)
+    if write:
+        json_str = json.dumps(dict, cls=MyEncoder)
+        if outputfile is not None:
+            json_path = outputfile + '/{0:02d}_{1:08d}.json'.format(node,frame)
+            print('Writing {0}'.format(outputfile))
+        with open(json_path,'w') as json_file:
+            json_file.write(json_str)
 
 
 def main():
@@ -266,9 +267,9 @@ def main():
     panel = 0
     node = 0
     frame = 0
-    
+
     node_num = len( os.listdir(data_path + "/hdImgs" ))
-    
+
     # data_path = args.data_path
     # panel = args.panel
     # node = args.node
@@ -297,13 +298,13 @@ def main():
 
             im, img_path = load_image(data_path, panel, j, frame)
             bframe = load_skeletons(data_path, panel, frame)
-            
-            translate(im, bframe, img_path,cameras[(panel, j)], panel, i, j, seq_name)
+
+            translate(im, bframe, img_path,cameras[(panel, j)], panel, i, j, seq_name, False)
 
             #dict_all.append(di)
             # draw_skeletons(im, bframe, cameras[(panel,node)])
 
-            
+
         # json_str = json.dumps(dict_all, cls=MyEncoder)
         # if outputfile is not None:
         #     outputfile = '{0:08d}.json'.format(node,frame)

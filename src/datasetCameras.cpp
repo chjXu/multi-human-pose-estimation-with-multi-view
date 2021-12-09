@@ -24,3 +24,16 @@ bool DataSetCamera::valid() const{
 bool DataSetCamera::isZero(const double &a) const{
     return (abs(a) - 0.0 > 1e-4);
 }
+
+void DataSetCamera::updateTransformation(const Eigen::Matrix3d& R, const Eigen::Matrix<double, 3, 1>& t){
+    this->R = R;
+    this->t = t;
+}
+
+void DataSetCamera::updateRotation(const Eigen::Matrix3d& R){
+    this->R = R;
+}
+
+void DataSetCamera::updateTranslation(const Eigen::Matrix<double, 3, 1>& t){
+    this->t = t;
+}

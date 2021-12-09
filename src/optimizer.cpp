@@ -1,5 +1,5 @@
 /*
- * @Description:  
+ * @Description:
  * @Author: chengjun_xu
  * @Data: Do not edit
  * @LastAuthor: Do not edit
@@ -10,9 +10,9 @@
 #include "multi_human_estimation/optimizer.h"
 
 CostFunction_cam_2d_2d
-::CostFunction_cam_2d_2d(Joint_2d _observe_point1, Joint_2d _observe_point2, 
-                         DataSetCamera _DC1, DataSetCamera _DC2)
-                :observe_point1(_observe_point1),observe_point2(_observe_point2), 
+::CostFunction_cam_2d_2d(const Joint_2d _observe_point1, const Joint_2d _observe_point2,
+                         const DataSetCamera _DC1, const DataSetCamera _DC2)
+                :observe_point1(_observe_point1),observe_point2(_observe_point2),
                 DC1(_DC1), DC2(_DC2){
 
 }

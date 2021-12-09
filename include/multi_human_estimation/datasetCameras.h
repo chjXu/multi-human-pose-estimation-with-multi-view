@@ -36,6 +36,27 @@ public:
     */
     bool valid() const;
 
+    /**
+     * @brief 发布和监听的信息不一致，可能要更新一下信息
+     * @param R, t
+     * @return
+    */
+    void updateTransformation(const Eigen::Matrix3d&, const Eigen::Matrix<double, 3, 1>&);
+
+    /**
+     * @brief 发布和监听的信息不一致，可能要更新一下旋转矩阵
+     * @param R
+     * @return
+    */
+    void updateRotation(const Eigen::Matrix3d& );
+
+    /**
+     * @brief 发布和监听的信息不一致，可能要更新一下向量
+     * @param t
+     * @return
+    */
+    void updateTranslation(const Eigen::Matrix<double, 3, 1>& );
+
 private:
     int id;
 

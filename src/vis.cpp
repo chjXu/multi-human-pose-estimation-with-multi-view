@@ -78,6 +78,10 @@ void Vis::showRootJoint(){
 }
 
 void Vis::addImage(const cv::Mat &img){
+    if(img.empty()){
+        ROS_ERROR("Img is empty()!");
+        return;
+    }
     this->image = img;
 }
 
