@@ -292,11 +292,12 @@ void Associate::calcualte3DPose(vector<pair<int, int> > & poses_ass, const Mode&
         vector<vector<double> > depths(2);
 
         if(mode == Mode::Ceres){
+            ceres::Problem problem;
             ROS_INFO("Start with ceres solver.");
             for(int i=0; i<pose_1.size(); ++i){
                 cout << "Joint: " << i << " pixel location: " << pose_1[i].x << " " << pose_1[i].y << "  "
                                                              << pose_2[i].x << " " << pose_2[i].y << endl;
-                vector<double> depth = OptimizerWithCereSolver(pose_1[i], pose_2[i], this->reference, this->target);
+                vector<double> depth = OptimizerWithCereSolver(pose_1[i], pose_2[i], this->reference, this->target, problem);
 
                 cout << "Ceres: " << depth[0] << " " << depth[1] << endl;
 
@@ -317,10 +318,9 @@ void Associate::calcualte3DPose(vector<pair<int, int> > & poses_ass, const Mode&
 }
 
 
-vector<double> Associate::OptimizerWithCereSolver(const Joint_2d& point_1, const Joint_2d& point_2, const int reference, const int target){
+vector<double> Associate::OptimizerWithCereSolver(const Joint_2d& point_1, const Joint_2d& point_2, const int reference, const int target, ceres::Problem& problem){
     double depth[2] = {};
 
-	ceres::Problem problem;
 	problem.AddResidualBlock(     // 向问题中添加误差项
     	  // 使用自动求导，模板参数：误差类型，输出维度，输入维度，维数要与前面struct中一致
       	new ceres::AutoDiffCostFunction<CostFunction_cam_2d_2d, 1, 2>(

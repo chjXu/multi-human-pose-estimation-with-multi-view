@@ -15,8 +15,7 @@
 #include "multi_human_estimation/datasetCameras.h"
 
 
-class CostFunction_cam_2d_2d{//仿函数
-public:
+struct CostFunction_cam_2d_2d{//仿函数
    /**
     * @description:
     * @param {Joint_2d} _observe_point1
@@ -26,14 +25,10 @@ public:
     * @return {*}
     */
   	CostFunction_cam_2d_2d(const Joint_2d _observe_point1, const Joint_2d _observe_point2,
-                           const DataSetCamera _DC1, const DataSetCamera _DC2);
+                           const DataSetCamera _DC1, const DataSetCamera _DC2)
+                           :observe_point1(_observe_point1),observe_point2(_observe_point2),
+                           DC1(_DC1), DC2(_DC2){}
 
-    /**
-     * @description:
-     * @param {*}
-     * @return {*}
-     */
-    ~CostFunction_cam_2d_2d();
 
     // 残差的计算
     /**
@@ -70,7 +65,7 @@ public:
         return true;
     }
 
-private:
+
 	Joint_2d observe_point1;
 	Joint_2d observe_point2;
 

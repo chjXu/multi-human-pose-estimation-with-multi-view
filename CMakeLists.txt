@@ -177,7 +177,7 @@ add_executable(datatset
   src/gl.cpp
   src/associate.cpp
   src/posePair.cpp
-  src/optimizer.cpp
+ # src/optimizer.cpp
   src/datasetCameras.cpp
 )
 

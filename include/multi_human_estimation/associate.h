@@ -189,7 +189,7 @@ protected:
      * @param {Joint_2d&} point_2
      * @return {*}
      */
-    vector<double> OptimizerWithCereSolver(const Joint_2d& point_1, const Joint_2d& point_2, const int reference, const int target);
+    vector<double> OptimizerWithCereSolver(const Joint_2d& point_1, const Joint_2d& point_2, const int reference, const int target, ceres::Problem& problem);
 
     /**
      * @description:
