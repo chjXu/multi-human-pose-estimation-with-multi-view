@@ -24,6 +24,7 @@ find_package(catkin REQUIRED COMPONENTS
   rospy
   std_msgs
   tf
+  tf_conversions
 )
 
 
@@ -181,6 +182,8 @@ add_executable(datatset
   src/datasetCameras.cpp
 )
 
+add_executable(cameraPose src/camPose.cpp)
+
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -202,6 +205,11 @@ target_link_libraries(datatset
   ${CERES_LIBRARIES}
   ${LIBS}
   glfw
+)
+
+target_link_libraries(cameraPose
+  ${catkin_LIBRARIES}
+  ${JSONCPP_LIBS}
 )
 
 #set_property(TARGET ${PROJECT_NAME}_node PROPERTY CXX_STANDARD 14)

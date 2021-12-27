@@ -4,6 +4,9 @@
 #include <eigen3/Eigen/Core>
 #include <eigen3/Eigen/Geometry>
 
+#include <tf/transform_datatypes.h>
+#include <tf/transform_listener.h>
+
 class DataSetCamera{
 public:
     double fx, fy, cx, cy;
@@ -56,6 +59,10 @@ public:
      * @return
     */
     void updateTranslation(const Eigen::Matrix<double, 3, 1>& );
+
+    void setRotation(const Eigen::Matrix3d&);
+
+    void setTranslation(const tf::Vector3&);
 
 private:
     int id;

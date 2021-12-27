@@ -37,3 +37,15 @@ void DataSetCamera::updateRotation(const Eigen::Matrix3d& R){
 void DataSetCamera::updateTranslation(const Eigen::Matrix<double, 3, 1>& t){
     this->t = t;
 }
+
+void DataSetCamera::setRotation(const Eigen::Matrix3d& R){
+    for(int i=0; i<3;++i){
+        for(int j=0; j<3; ++j){
+            this->R(i, j) = R(i, j);
+        }
+    }
+}
+
+void DataSetCamera::setTranslation(const tf::Vector3& trans){
+    this->t = Eigen::Matrix<double, 3, 1>(trans[0], trans[1], trans[2]);
+}

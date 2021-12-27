@@ -16,15 +16,9 @@
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>
 
-#include <tf/transform_datatypes.h>
-#include <tf/transform_listener.h>
-
-#include <eigen3/Eigen/Core>
-#include <eigen3/Eigen/Geometry>
-
 #include "multi_human_estimation/pose.h"
 #include "multi_human_estimation/posePair.h"
-#include "multi_human_estimation/datasetCameras.h"
+#include "multi_human_estimation/datasetCameras.h" // tf, eigen
 #include "multi_human_estimation/optimizer.h"
 
 #include <opencv2/core/core.hpp>

@@ -22,6 +22,12 @@
 
 using namespace std;
 
+enum DataName{
+    cmu,
+    shelf,
+    campus
+};
+
 /**
 数据集格式：00000001.json
 {
@@ -75,7 +81,7 @@ public:
      * @brief 重载读取相机参数函数
      *
      * @param root
-     * @return ** DataSetCamera
+     * @return
     */
     virtual void readCameraParametersFromFile(Json::Value &root, DataSetCamera& DC);
     virtual void readBodies(Json::Value& root);
@@ -85,6 +91,10 @@ public:
         return image;
     }
     virtual void projection(Pose &pose);
+
+    vector<DataSetCamera> getCams() const{
+        return this->cameras;
+    } 
 
 protected:
     string image_path;
@@ -107,15 +117,12 @@ public:
     string _campus_dataset_path;
     string _shelf_dataset_path;
     string _cmu_dataset_path;
+    string root_path;
+    DataName dataname;
+
+    tf::TransformListener *tf_listener;
 
     // int _campus_max_frames;
-
-    enum DataName{
-        cmu = 0,
-        shelf,
-        campus
-    }dataname;
-
 public:
     /**
      * 数据集构造函数
@@ -126,6 +133,7 @@ public:
     Dataset(string data_path, string data_name, int _frame_num);
     ~Dataset();
 
+    void printCamInfo(DataSetCamera &DC);
 
     /**
      * @brief 添加要使用的视频帧索引
@@ -146,9 +154,17 @@ public:
      * @brief 从JSON文件中读取相机信息，因为相机信息仅需要读取一遍即可
      *
      * @param frame_index
-     * @return ** DataSetCamera
+     * @return void
      */
-    DataSetCamera readCameraParameterFromJSONFile(int frame_index);
+    void readCameraParameterFromJSONFile();
+
+    /**
+     * @brief 从RVIZ中监听相机信息，相机信息仅需要读取一遍即可
+     *
+     * @param f_nums
+     * @return void
+     */
+    void listenerCameraPose(vector<int> &f_nums);
 
     /**
      * @brief 从JSON文件中读取关节信息
@@ -180,4 +196,6 @@ public:
      * @return {*}
      */
     vector<Pose> loadData();
+
+
 };

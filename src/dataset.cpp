@@ -2,43 +2,84 @@
 
 Dataset::Dataset(string data_path, string data_name, int _frame_num):frame_num(_frame_num){
     if(data_name == "CMU"){
-        dataname = cmu;
-        this->_cmu_dataset_path = data_path + data_name + "/data/";
+        dataname = DataName::cmu;
+        this->root_path = data_path;
+        this->_cmu_dataset_path = data_path + "/data/" + data_name;
     }
     else if(data_name == "SHELF"){
-        dataname = shelf;
-        this->_shelf_dataset_path = data_path;
+        dataname = DataName::shelf;
+        this->root_path = data_path;
+        this->_shelf_dataset_path = data_path + "/data/" + data_name;
     }
     else if(data_name == "CAMPUS"){
-        dataname = campus;
-        this->_campus_dataset_path = data_path;
+        dataname = DataName::campus;
+        this->root_path = data_path;
+        this->_campus_dataset_path = data_path + "/data/" + data_name;
     }
     else{
         cout << "Invaild DataName!" << endl;
     }
 
+    tf_listener = new tf::TransformListener();
 }
 
 Dataset::~Dataset(){
-    //delete vis;
+    if(tf_listener != nullptr)
+        delete tf_listener;
 }
 
-DataSetCamera Dataset::readCameraParameterFromJSONFile(int frame_index){
-    char path [100];
-    sprintf(path, "%d/%02d_%08d.json", 0, 0, frame_index);
+// 相机参数更新完成
+void Dataset::readCameraParameterFromJSONFile(){
+    string dataset_path;
 
-    // cout << this->_cmu_dataset_path + path << endl;
-    fin.open(this->_cmu_dataset_path + path, std::ios::binary);
+    if(dataname == DataName::cmu)
+        dataset_path = this->root_path + "/cameraPose/cmu_cameras.json";
+    else if(dataname == DataName::shelf)
+        dataset_path = this->root_path + "/cameraPose/shelf_cameras.json";
+    else if(dataname == DataName::campus)
+        dataset_path = this->root_path + "/cameraPose/campus_cameras.json";
 
-    DataSetCamera DC;
-    // cout << root["camera"]["t"][0][0] << endl;
-    // cout << root["camera"]["t"][1][0] << endl;
+    fin.open(dataset_path, std::ios::binary);
+
     if(reader.parse(fin, root, false)){
-       readCameraParametersFromFile(root, DC);
+       readCameraParametersFromFile(root);
     }
     fin.close();
+}
 
-    return DC;
+void Dataset::listenerCameraPose(vector<int> &f_nums){
+    // 读取所有相机的参数（包括内参和外参）
+    readCameraParameterFromJSONFile();
+
+    // 更新外参
+    for(int i=0; i < f_nums.size(); ++i){
+        tf::StampedTransform transform;
+
+        while(ros::ok()){
+            try
+            {
+                tf_listener->waitForTransform("world","camera_"+to_string(f_nums[i]),ros::Time(0),ros::Duration(3.0));
+                tf_listener->lookupTransform("world", "camera_"+to_string(f_nums[i]), ros::Time(0), transform);
+            }
+            catch(tf::TransformException &ex)
+            {
+                ROS_ERROR("%s",ex.what());
+                ros::Duration(1.0).sleep();
+                continue;
+            }
+
+            tf::Quaternion tf_q = transform.getRotation();
+
+            Eigen::Matrix3d rot = Eigen::Quaterniond(tf_q.w(), tf_q.x(), tf_q.y(), tf_q.z()).toRotationMatrix();
+
+            this->cameras[f_nums[i]].setRotation(rot);
+            this->cameras[f_nums[i]].setTranslation(transform.getOrigin());
+
+            break;
+        }
+    }
+
+    ROS_INFO("The cameras parameters are updated.");
 }
 
 void ImageProcess::readCameraParametersFromFile(Json::Value &root, DataSetCamera& DC){
@@ -65,28 +106,33 @@ void ImageProcess::readCameraParametersFromFile(Json::Value &root, DataSetCamera
 
 
 void ImageProcess::readCameraParametersFromFile(Json::Value &root){
-    //this->cameras.clear();
-    DataSetCamera DC;
-    DC.setID(root["camera"]["id"].asInt());
-    DC.fx = root["camera"]["K"][0][0].asDouble();
-    DC.fy = root["camera"]["K"][1][1].asDouble();
-    DC.cx = root["camera"]["K"][0][2].asDouble();
-    DC.cy = root["camera"]["K"][1][2].asDouble();
+    this->cameras.clear();
 
-    for(unsigned int i=0; i<3; ++i){
-        for(unsigned int j=0; j<3; ++j){
-            DC.R(i, j) = root["camera"]["R"][i][j].asDouble();
+    cout << root["cameras"].size() << endl;
+    for(int i=0; i<root["cameras"].size(); ++i){
+        DataSetCamera DC;
+        DC.setID(root["cameras"][i]["id"].asInt());
+
+        DC.fx = root["cameras"][i]["K"][0][0].asDouble();
+        DC.fy = root["cameras"][i]["K"][1][1].asDouble();
+        DC.cx = root["cameras"][i]["K"][0][2].asDouble();
+        DC.cy = root["cameras"][i]["K"][1][2].asDouble();
+
+        for(unsigned int j=0; i<3; ++j){
+            for(unsigned int k=0; j<3; ++k){
+                DC.R(j, k) = root["cameras"][i]["R"][j][k].asDouble();
+            }
         }
+
+        for(unsigned int j=0; j<3; ++j){
+            DC.t(j, 0) = root["cameras"][i]["t"][j][0].asDouble();
+        }
+
+        DC.R = DC.R.transpose();
+        DC.t = DC.R * -DC.t;
+
+        this->cameras.emplace_back(DC);
     }
-
-    for(unsigned int i=0; i<3; ++i){
-        DC.t(i, 0) = root["camera"]["t"][i][0].asDouble();
-    }
-
-    DC.R = DC.R.transpose();
-    DC.t = DC.R * -DC.t;
-
-    this->cameras.push_back(DC);
 }
 
 void ImageProcess::readImagePath(Json::Value& root){
@@ -179,13 +225,23 @@ vector<Pose> Dataset::loadData(){
     return this->poses;
 }
 
+void Dataset::printCamInfo(DataSetCamera &DC){
+    ROS_INFO("Test Function..........");
+    cout << "fx: " << DC.fx << "  fy: " << DC.fy << " cx: " << DC.cx << " cy: " << DC.cy << endl;
+    cout << "R: " << DC.R << "\n";
+    cout << "t: " << DC.t << endl;
+}
+
 
 
 
 int main(int argc, char** argv){
     ros::init(argc, argv, "dataset_test");
 
-    string data_path = "/home/xuchengjun/catkin_ws/src/multi_human_estimation/script/dataset/";
+    if(argc < 2)
+        ROS_ERROR("Please enter dataset name.");
+
+    string data_path = "/home/xuchengjun/catkin_ws/src/multi_human_estimation/data";
 
     ros::NodeHandle n;
 	ros::Publisher pose_pub = n.advertise<visualization_msgs::Marker>("visualization_marker",1);
@@ -196,74 +252,70 @@ int main(int argc, char** argv){
                         // 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30
                         };
 
-    Dataset *dataset = new Dataset(data_path, "CMU", 1);
+    Dataset *dataset = new Dataset(data_path, argv[1], frames.size());
 
-    Vis *vis = new Vis(pose_pub);
-
-    Associate *ass = new Associate();
+    // Vis *vis = new Vis(pose_pub);
+    //
+    // Associate *ass = new Associate();
 
     // GLshow *gl = new GLshow();
 
-    // camera_0 to world
-    DataSetCamera cam2world;
 
-    for(int i=0; i<frames.size(); ++i){
-        if(i==0)
-            cam2world = dataset->readCameraParameterFromJSONFile(i);
-        //dataset->readCameraParameterFromJSONFile(i);
-        ass->addCameraInfo(dataset->readCameraParameterFromJSONFile(i), i);
-    }
+    dataset->listenerCameraPose(frames);
+    dataset->printCamInfo(dataset->getCams()[0]); // 测试用
+    // ass->addCameraInfo(dataset->readCameraParameterFromJSONFile(i), i);
 
-    int index = 0;
-    // 这是所有文件，帧数自定义
-    int file_num = 100;
-    // for(int file=0; file<file_num; ++file)
-    while(index < 1 && ros::ok()){
-        dataset->clear();
 
-        // 这是一个文件里的所有帧
-        for(int i=0; i<frames.size(); ++i){
-            //预处理
-
-            dataset->addFrames(frames);
-
-            dataset->readJSONFile(frames[i]);
-
-            dataset->readImage();
-
-            // 匹配
-            ass->addPoseInfo(dataset->getPoses());
-            if(i != 0)  ass->run(0, i, false, Mode::Ceres);
-
-            vis->addImage(dataset->getImage());
-
-            vis->showImage(index);
-
-            vis->drawSkeletons(ass->getResult(), cam2world);
-
-            // gl->run();
-        }
-
-        // vis->transRootJoint(dataset->getPoses(), dataset->cameras[i]);
-
-        // vis->addImage(dataset->getImage());
-
-        // vis->showRootJoint();
-
-        // vis->drawPoint(dataset->getPoses());
-
-        // // cout << dataset->getPoses()[0].getCameraID() << endl;
-        // // cout << dataset->cameras[i].getID() << endl;
-        // vis->showImage(index);
-
-        index++;
-
-        ros::spinOnce();
-    }
+    // int index = 0;
+    // // 这是所有文件，帧数自定义
+    // int file_num = 100;
+    // // for(int file=0; file<file_num; ++file)
+    // while(index < 1 && ros::ok()){
+    //     dataset->clear();
+    //
+    //     // 这是一个文件里的所有帧
+    //     for(int i=0; i<frames.size(); ++i){
+    //         //预处理
+    //
+    //         dataset->addFrames(frames);
+    //
+    //         dataset->readJSONFile(frames[i]);
+    //
+    //         dataset->readImage();
+    //
+    //         // 匹配
+    //         ass->addPoseInfo(dataset->getPoses());
+    //         if(i != 0)  ass->run(0, i, false, Mode::Ceres);
+    //
+    //         vis->addImage(dataset->getImage());
+    //
+    //         vis->showImage(index);
+    //
+    //         vis->drawSkeletons(ass->getResult(), cam2world);
+    //
+    //         // gl->run();
+    //     }
+    //
+    //     // vis->transRootJoint(dataset->getPoses(), dataset->cameras[i]);
+    //
+    //     // vis->addImage(dataset->getImage());
+    //
+    //     // vis->showRootJoint();
+    //
+    //     // vis->drawPoint(dataset->getPoses());
+    //
+    //     // // cout << dataset->getPoses()[0].getCameraID() << endl;
+    //     // // cout << dataset->cameras[i].getID() << endl;
+    //     // vis->showImage(index);
+    //
+    //     index++;
+    //
+    //     ros::spinOnce();
+    // }
 
     delete dataset;
-    delete vis;
-    delete ass;
+    // delete vis;
+    // delete ass;
     // delete gl;
 
     return 0;
