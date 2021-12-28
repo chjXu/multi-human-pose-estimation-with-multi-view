@@ -22,7 +22,7 @@ bool DataSetCamera::valid() const{
 
 
 bool DataSetCamera::isZero(const double &a) const{
-    return (abs(a) - 0.0 > 1e-4);
+    return (abs(a) - 0.0 < 1e-3);
 }
 
 void DataSetCamera::updateTransformation(const Eigen::Matrix3d& R, const Eigen::Matrix<double, 3, 1>& t){

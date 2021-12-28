@@ -75,7 +75,7 @@ void Associate::addPoseInfo(const vector<Pose> &framePoses){
 
 
 void Associate::addCameraInfo(const DataSetCamera &DC, int camera_id){
-    if(DC.valid()){
+    if(!DC.valid()){
         ROS_ERROR("Camera %d data is invalid.", camera_id);
         return;
     }

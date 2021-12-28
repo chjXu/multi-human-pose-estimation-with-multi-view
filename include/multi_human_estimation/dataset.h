@@ -67,7 +67,7 @@ public:
     vector<DataSetCamera> cameras;  //相机参数，与姿态顺序对应
 
 // protected:
-    virtual void readImagePath(Json::Value& root);
+    virtual void readImagePath(Json::Value& root, int frame_index);
 
     /**
      * @brief 读取相机参数函数
@@ -85,20 +85,22 @@ public:
     */
     virtual void readCameraParametersFromFile(Json::Value &root, DataSetCamera& DC);
     virtual void readBodies(Json::Value& root);
-    virtual void readImage();
-    virtual void showImage();
+    virtual void readImage(std::string img_path);
+    virtual void showImage(int id, cv::Mat &img);
     virtual cv::Mat getImage() const{
         return image;
     }
-    virtual void projection(Pose &pose);
+    virtual void projection(cv::Mat &img, vector<Pose> &pose);
 
     vector<DataSetCamera> getCams() const{
         return this->cameras;
-    } 
+    }
 
 protected:
-    string image_path;
+    // string image_path;
+    vector<std::string> img_paths;
     cv::Mat image;
+    vector<cv::Mat> imgs;
 };
 
 
@@ -106,13 +108,19 @@ class Dataset : public ImageProcess //, public GLshow
 {
 private:
     std::ifstream fin;
-    vector<Pose> poses;
+    vector<vector<Pose>> poses; // 存储当前JSON文件中的所有姿态信息
     vector<int> frames;
 
     int frame_num;
 
     Json::Reader reader;
     Json::Value root;
+
+
+    vector<double> getRootJoint(const Json::Value &);
+
+    vector<double> getPred2DPose(const Json::Value &);
+
 public:
     string _campus_dataset_path;
     string _shelf_dataset_path;
@@ -148,7 +156,7 @@ public:
      * @param frame_index JSON文件索引
      * 输出：
      */
-    void readJSONFile(int frame_index);
+    void readJSONFile(int frame_index, int ass_num);
 
     /**
      * @brief 从JSON文件中读取相机信息，因为相机信息仅需要读取一遍即可
@@ -186,7 +194,7 @@ public:
      *
      * @return ** vector<Pose>
      */
-    vector<Pose> getPoses() const{
+    vector<vector<Pose>> getPoses() const{
         return poses;
     }
 
@@ -197,5 +205,5 @@ public:
      */
     vector<Pose> loadData();
 
-
+    void testData(int num);
 };

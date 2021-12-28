@@ -1,6 +1,7 @@
 '''
 author: chengjun_xu
 转换数据集为我们自己的格式
+CMU 原始数据集测试文件
 '''
 
 import argparse

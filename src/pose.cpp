@@ -25,27 +25,29 @@ void Pose::setCameraID(int _camera_id){
 }
 
 void Pose::set2DPose(vector<double>& joints){
-    if(joints.empty() || joints.size() % 2 != 0) return;
+    if(joints.empty() || joints.size() % 3 != 0) return;
 
     pose_2d.clear();
-    for(int i=0; i<joints.size() / 2; ++i){
+    for(int i=0; i<joints.size() / 3; ++i){
         Joint_2d joint2d;
-        joint2d.x = joints[2*i];
-        joint2d.y = joints[2*i + 1];
+        joint2d.x = joints[3*i];
+        joint2d.y = joints[3*i + 1];
+        joint2d.p = joints[3*i + 2];
         pose_2d.push_back(joint2d);
     }
 }
 
 
 void Pose::setRootPose(vector<double> &root){
-    if(root.empty() || root.size() % 3 != 0) return;
+    if(root.empty() || root.size() % 4 != 0) return;
 
     root_3d.clear();
-    for(int i=0; i<root.size() / 3; ++i){
+    for(int i=0; i<root.size() / 4; ++i){
         Root_3d root3d;
-        root3d.x = root[3*i];
-        root3d.y = root[3*i + 1];
-        root3d.z = root[3*i + 2];
+        root3d.x = root[4*i];
+        root3d.y = root[4*i + 1];
+        root3d.z = root[4*i + 2];
+        root3d.p = root[4*i + 3];
         root3d.available = true;
         root_3d.push_back(root3d);
     }

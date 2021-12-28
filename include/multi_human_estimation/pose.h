@@ -29,6 +29,7 @@ struct Root_3d
     float x;
     float y;
     float z;
+    float p;
     bool available;
 
     Root_3d():x(0.0), y(0.0), z(0.0), available(false){}
