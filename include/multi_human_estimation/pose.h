@@ -15,6 +15,9 @@
 
 using namespace std;
 
+const float alpha = 1920.0 / 832.0;
+const float belta = 1080.0 / 512.0;
+
 struct Joint_2d
 {
     float x;

@@ -1,8 +1,10 @@
 #include "multi_human_estimation/associate.h"
 
 int Associate::index = 0;
+// double Associate::miu = 0.4;
+// double Associate::namada = 0.6;
 
-Associate::Associate():reference(0), target(0){
+Associate::Associate():reference(0), target(0), namada(0.0), miu(0.0){
     tf_listener = new tf::TransformListener();
 
     options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
@@ -48,29 +50,59 @@ void Associate::printInfo(const vector<Pose> &poses){
 }
 
 
-void Associate::run(int reference, int target, bool single, const Mode&& mode){
-    this->reference = reference;
-    this->target = target;
-
-    if(single){
-
+void Associate::run(const Mode&& mode){
+    if(this->inputs.size() < 2){
+        ROS_ERROR("Associate frames are less 2.");
+        return;
     }
-    else{
-        triangularCamera(this->reference, this->target, mode);
-        generatePair(this->inputs[reference], this->inputs[target]);
-        fusionOfIncremental(this->reference, this->target);
-        vector<pair<int, int> > poses_ass = extract2DAssociation();
-        calcualte3DPose(poses_ass, mode);
-        getPoseResult(this->reference);
-    }
+
+    this->reference = 0;
+    this->target = 1;
+
+    vector<Pose> pose_tmp = poseFusion(this->reference, this->target, mode);
+
+    // for(int i=0; i < this->inputs.size(); ++i){
+    //     if(i==0){
+    //         this->reference = 0;
+    //         break;
+    //     }
+    //
+    //     this->target = i;
+    // }
+
+    // triangularCamera(this->reference, this->target, mode);
+    // generatePair(this->inputs[reference], this->inputs[target]);
+    // fusionOfIncremental(this->reference, this->target);
+    // vector<pair<int, int> > poses_ass = extract2DAssociation();
+    // calcualte3DPose(poses_ass, mode);
+    // getPoseResult(this->reference);
+
+}
+
+vector<Pose> Associate::poseFusion(int reference, int target, const Mode& mode){
+    // 通过tf监听得到相机相对姿态
+    // triangularCamera(reference, target, mode);
+
+    // 通过数学计算得到相机相对姿态
+    triangularCamera(reference, target, mode); //得到R和t
+    generatePair(this->inputs[reference], this->inputs[target]);
+    fusionOfEachFrame(this->inputs[reference], this->inputs[target]);
+
+
+    return {};
 }
 
 
-void Associate::addPoseInfo(const vector<Pose> &framePoses){
+void Associate::addPoseInfo(const vector<vector<Pose>> &framePoses){
     if(framePoses.empty())
         ROS_ERROR("The pose inputted is empty.");
 
-    this->inputs.push_back(framePoses);
+    /**
+    要进行匹配的姿态信息.
+    framePoses大小最小为2，第一个表示第0帧所有的姿态信息，第二个为表示第1帧所有的姿态信息。
+    framePoses大小最大为30（CMU数据集），5（Shelf）, 3（Campus）.
+    */
+    this->inputs = framePoses;
 }
 
 
@@ -85,7 +117,10 @@ void Associate::addCameraInfo(const DataSetCamera &DC, int camera_id){
 
 
 void Associate::generatePair(vector<Pose>& pose_1, vector<Pose>& pose_2){
-    int group = 0;
+    static int group = 1;
+
+    cout << "--------------------------------------" << endl;
+    ROS_INFO("The %d group are starting pairing.", group);
 
     if(pose_1.empty() && pose_2.empty()){
         ROS_ERROR("There are 0 humans in Camera %d and Camera %d.", this->reference, this->target);
@@ -124,7 +159,13 @@ void Associate::triangularCamera(int reference, int target, const Mode& mode){
     bool listening = false;
 
     if(mode == Mode::triangulation || mode == Mode::OpenCV){
-        // do nothing now.
+        // 计算相对位姿.
+        this->R = this->cameras[reference].R.transpose() * this->cameras[target].R;
+
+        // cout << "R: " << R << endl;
+
+        this->t = this->cameras[reference].R.transpose() * (this->cameras[target].t - this->cameras[reference].t);
+        // cout << "t: " << t << endl;
     }
     else if (mode == Mode::Ceres){
         // 这里使用ROS框架下的tf
@@ -176,14 +217,15 @@ void Associate::triangularCamera(int reference, int target, const Mode& mode){
             listening = true;
             break;
         }
+
+        if(listening)
+            ROS_INFO("The transformation of Camera %d and Camera %d are listened.", reference, target);
+        else
+            ROS_ERROR("The transformation of Camera %d and Camera %d are not listened.", reference, target);
+
     }else{
         ROS_ERROR("Mode error.");
     }
-
-    if(listening)
-        ROS_INFO("The transformation of Camera %d and Camera %d are listened.", reference, target);
-    else
-        ROS_ERROR("The transformation of Camera %d and Camera %d are not listened.", reference, target);
 }
 
 
@@ -247,7 +289,31 @@ void Associate::fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2){
 
 
 bool Associate::calculateCorrespondence(PosePair &pair, const double & threshold){
-    pair.setDelta(0.1);
+    int cam_1, cam_2;
+    cam_1 = pair.getCam_1();
+    cam_2 = pair.getCam_2();
+
+    assert(this->reference = cam_1);
+    assert(this->target = cam_2);
+
+    Pose pose_1 = this->inputs[cam_1][pair.getIndex_1()];
+    Pose pose_2 = this->inputs[cam_2][pair.getIndex_2()];
+
+	double sum_EX = 0.0;
+
+    vector<Root_3d> root_1 = pose_1.getRootPose();
+    vector<Root_3d> root_2 = pose_2.getRootPose();
+
+    root_1 = transToWorldOfRoot(root_1, this->cameras[this->reference]);
+    root_2 = transToWorldOfRoot(root_2, this->cameras[this->target]);
+
+    if(root_1[0].available && root_1[1].available && root_2[0].available && root_2[1].available){
+        sum_EX = lineToline(root_1, root_2);
+    }
+
+
+
+    pair.setDelta(sum_EX);
 
     if(pair.getDelta() <= threshold)
         return true;
@@ -380,13 +446,90 @@ vector<Joint_3d> Associate::average(const Pose& pose_1, const Pose& pose_2){
 }
 
 
-void Associate::transToWorld(Pose &pose, const DataSetCamera& DC){
+void Associate::transToWorldOfRoot(Pose &pose, const DataSetCamera& DC){
 
+}
+
+vector<Root_3d> Associate::transToWorldOfRoot(const vector<Root_3d> &root, const DataSetCamera& DC){
+    if(root.empty()) return {};
+
+    vector<Root_3d> _root;
+    for(auto it : root){
+        Root_3d r_;
+        Eigen::Matrix<double, 3, 1> joint;
+        joint << it.x, it.y, it.z;
+        joint = DC.R * joint + DC.t;
+
+        r_.x = joint(0, 0);
+        r_.y = joint(1, 0);
+        r_.z = joint(2, 0);
+        r_.p = it.p;
+        r_.available = it.available;
+
+        _root.push_back(r_);
+    }
+
+    return _root;
+}
+
+double Associate::getDistance(const Root_3d & root_1, const Root_3d & root_2){
+    // cout << "root_1: " << root_1.x << " " << root_1.y << " " << root_1.z << endl;
+    // cout << "root_2: " << root_2.x << " " << root_2.y << " " << root_2.z << endl;
+
+    return root_1.p * root_2.p *
+        std::sqrt((root_1.x - root_2.x) * (root_1.x - root_2.x)
+                + (root_1.y - root_2.y) * (root_1.y - root_2.y)
+                + (root_1.z - root_2.z) * (root_1.z - root_2.z));
+}
+
+double Associate::getScore(const Root_3d & root_1, const Root_3d & root_2){
+    return root_1.p * root_2.p;
 }
 
 
 double Associate::lineToline(const vector<Root_3d> &line_1, const vector<Root_3d> &line_2){
-    return 0.0;
+    double res = 0.0;
+
+    this->namada = 0.8;
+    this->miu = 0.2;
+    double dis_l;
+
+    vector<double> l1 = {line_1[1].x - line_1[0].x, line_1[1].y - line_1[0].y, line_1[1].z - line_1[0].z};  //方向向量
+    vector<double> l2 = {line_2[1].x - line_2[0].x, line_2[1].y - line_2[0].y, line_2[1].z - line_2[0].z};  //方向向量
+    vector<double> v_ = {line_2[0].x - line_1[0].x, line_2[0].y - line_1[0].y, line_2[0].z - line_1[0].z}; // 点向量
+
+    // 空间中的线与线的关系包含异面、相交、平行、重合。
+    // 其中，异面和相交放在一起，平行和重合放在一起
+    // 若相交或重合则返回0，若异面或平行则按照下面计算。
+    // 首先，判断两条直线的关系
+    vector<double> l1_ = {line_1[0].x, line_1[0].y, line_1[0].z, line_1[1].x, line_1[1].y, line_1[1].z};
+    vector<double> l2_ = {line_2[0].x, line_2[0].y, line_2[0].z};
+
+    if(isParallel(l1, l2)){
+        // 平行
+        ROS_INFO("Parallel.");
+        dis_l = computeModel(crossMulti(v_, l2)) / computeModel(l2);
+        if(dis_l < 1e-4){
+            ROS_INFO("Cross or same.");
+            return 0.0;
+        }
+    }else{
+        // 异面
+        ROS_INFO("Skew.");
+        vector<double> n_ = crossMulti(l1, l2);
+        dis_l = dot(v_, n_) / computeModel(n_);
+    }
+
+
+    double dis_p = 0.0, sco_p = 0.0;
+
+    for(int i=0; i<2; ++i){
+        dis_p += getDistance(line_1[i], line_2[i]);
+        sco_p += getScore(line_1[i], line_2[i]);
+    }
+
+    res = (this->namada * dis_l + this->miu * dis_p) / (this->namada + this->miu * sco_p);
+    return res;
 }
 
 double Associate::pointToline(const Root_3d &root, const vector<Root_3d> &line){
@@ -426,17 +569,41 @@ void Associate::getPoseResult(int reference){
 
 
 template <typename T>
-T computeModel(vector<T>& v){
-    return 0.0;
+T Associate::computeModel(const vector<T>& v){
+    assert(!v.empty() && v.size() == 3);
+    return std::sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
 }
 
 template <typename T>
-T dot(vector<T>& v1, vector<T>& v2){
-    return 0.0;
+T Associate::dot(const vector<T>& v1, const vector<T>& v2){
+    assert(!v1.empty() && !v2.empty() && v1.size() == v2.size() == 3);
+
+    return v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2];
 }
 
 
 template <typename T>
-vector<T> crossMulti(vector<T>& v1, vector<T>& v2){
-    return 0.0;
+vector<T> Associate::crossMulti(const vector<T>& v1, const vector<T>& v2){
+    assert(!v1.empty() && !v2.empty() && v1.size() == v2.size() == 3);
+
+    vector<T> res;
+
+    res.push_back(v1[1] * v2[2] - v1[2] * v2[1]);
+    res.push_back(v1[2] * v2[0] - v1[0] * v2[2]);
+    res.push_back(v1[0] * v2[1] - v1[1] * v2[0]);
+
+    return res;
+}
+
+template <typename T>
+T Associate::det(const vector<T>& v1, const vector<T>& v2){
+    return v1[0]*v2[4]*v2[2]+v1[1]*v1[2]*v1[3]+v1[3]*v2[1]*v1[3]-v1[2]*v1[4]*v2[0]
+            -v1[1]*v1[3]*v2[2]-v1[0]*v2[1]*v1[5];
+}
+
+template <typename T>
+bool Associate::isParallel(const vector<T>& v1, const vector<T>& v2){
+    return (v1[0] / v2[0] - v1[1] / v2[1]) < 1e-4
+            && (v1[0] / v2[0] - v1[2] / v2[2]) < 1e-4
+            && (v1[1] / v2[1] - v1[2] / v2[2]) < 1e-4;
 }

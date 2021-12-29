@@ -74,5 +74,44 @@ def main():
     cv2.imwrite(root_path + '/res.png',img)
 
 
+    # 12.29 新加，用来验证网络输出结果
+    # exist = 0
+    # root_path = osp.join("/media/xuchengjun/D/dataset/cmu_test")
+    # img_path = osp.join(root_path, "0", "00014022.jpg")
+    # json_path = osp.join(root_path, "data", "2", "00000000.json")
+    # img_name = "00014022"
+    #
+    # a = 1920 / 832
+    # b = 1080 / 512
+    #
+    # with open(json_path, 'r') as f:
+    #     data = json.load(f)['img_to_json']
+    #
+    # pred_2d = np.array(data[0]['pred_2d'])
+    #
+    # img = cv2.imread(img_path)
+    # # img = cv2.resize(img, (832, 512))
+    #
+    # for ip in range(len(pred_2d)): #总的人数
+    #     p2d = pred_2d[ip]
+    #     line_width = 1
+    #     for p in range(len(pairs)): #每一个人
+    #         if p == 1:
+    #             line_width = 5
+    #         else:
+    #             line_width = 2
+    #         if p2d[pairs[p]][0][0] != int(exist) and p2d[pairs[p]][0][1] != int(exist):
+    #             cv2.circle(img, (int(p2d[pairs[p]][0][0] * a), int(p2d[pairs[p]][0][1] * b)), line_width, colors[ip], -1)
+    #         if p2d[pairs[p]][0][0] !=int(exist) and p2d[pairs[p]][0][1] != int(exist) \
+    #             and p2d[pairs[p]][1][0] !=int(exist) and p2d[pairs[p]][1][1] != int(exist):
+    #             cv2.line(img, (int(p2d[pairs[p]][0][0] * a), int(p2d[pairs[p]][0][1] * b)),
+    #                     (int(p2d[pairs[p]][1][0] * a), int(p2d[pairs[p]][1][1] * b)), colors[ip], line_width)
+    #
+    # cv2.imshow(img_name, img)
+    # cv2.waitKey(0)
+    # print(root_path)
+    # cv2.imwrite(root_path + '/res.png',img)
+
+
 if __name__ == '__main__':
     main()

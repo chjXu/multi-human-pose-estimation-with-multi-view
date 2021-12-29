@@ -44,14 +44,14 @@ public:
      * @param single
      * @return ** void
      */
-    void run(int reference, int target, bool single=false, const Mode&& mode = Mode::triangulation);
+    void run(const Mode&& mode = Mode::triangulation);
 
     /**
      * @brief 添加每一帧不同视角捕获到的姿态信息
      * 输入：每一个视角下的所有人的人体姿态信息
      * 输出：
      */
-    void addPoseInfo(const vector<Pose> &framePoses);
+    void addPoseInfo(const vector<vector<Pose>> &framePoses);
 
     /**
      * @brief 添加每一帧不同视角下的相机姿态信息。
@@ -113,7 +113,14 @@ protected:
      * @param {Pose} &
      * @return {void}
      */
-    void transToWorld(Pose &, const DataSetCamera& DC);
+    void transToWorldOfRoot(Pose &, const DataSetCamera& DC);
+
+    /**
+     * @description: translate the camera point to world
+     * @param {Pose} &
+     * @return {void}
+     */
+    vector<Root_3d> transToWorldOfRoot(const vector<Root_3d> &, const DataSetCamera& DC);
 
     /**
      * @description:
@@ -229,6 +236,27 @@ protected:
      */
     void getPoseResult(int reference);
 
+    /**
+     * @description:
+     * @param {*}
+     * @return {*}
+     */
+    vector<Pose> poseFusion(int reference, int target, const Mode& mode);
+
+    /**
+     * @description:
+     * @param {*}
+     * @return {*}
+     */
+    double getDistance(const Root_3d &, const Root_3d &);
+
+    /**
+     * @description:
+     * @param {*}
+     * @return {*}
+     */
+    double getScore(const Root_3d &, const Root_3d &);
+
 private:
     /**
      * @description:
@@ -236,7 +264,7 @@ private:
      * @return {*}
      */
     template <typename T>
-    T computeModel(vector<T>& );
+    T computeModel(const vector<T>& );
 
     /**
      * @description:
@@ -244,7 +272,7 @@ private:
      * @return {*}
      */
     template <typename T>
-    T dot(vector<T>& , vector<T>& );
+    T dot(const vector<T>& , const vector<T>& );
 
     /**
      * @description:
@@ -252,8 +280,13 @@ private:
      * @return {*}
      */
     template <typename T>
-    vector<T> crossMulti(vector<T>& , vector<T>& );
+    vector<T> crossMulti(const vector<T>& , const vector<T>& );
 
+    template <typename T>
+    T det(const vector<T>& , const vector<T>& );
+
+    template <typename T>
+    bool isParallel(const vector<T>& v1, const vector<T>& v2);
     /**
      * @description:打印输出一帧图像中的所有姿态信息
      * @param {vector<Pose>} &
@@ -279,6 +312,10 @@ private:
     vector<Pose> poses_3d;
 
     static int index;
+
+    // 置信度权重系数
+    double miu;
+    double namada;
 
     // 三角化之旋转和平移
     Eigen::Matrix3d R;

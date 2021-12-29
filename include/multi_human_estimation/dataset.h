@@ -86,9 +86,10 @@ public:
     virtual void readCameraParametersFromFile(Json::Value &root, DataSetCamera& DC);
     virtual void readBodies(Json::Value& root);
     virtual void readImage(std::string img_path);
+    virtual void readImage();
     virtual void showImage(int id, cv::Mat &img);
-    virtual cv::Mat getImage() const{
-        return image;
+    virtual vector<cv::Mat> getImage() const{
+        return imgs;
     }
     virtual void projection(cv::Mat &img, vector<Pose> &pose);
 
@@ -99,7 +100,7 @@ public:
 protected:
     // string image_path;
     vector<std::string> img_paths;
-    cv::Mat image;
+    // cv::Mat image;
     vector<cv::Mat> imgs;
 };
 

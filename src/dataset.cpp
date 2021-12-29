@@ -151,14 +151,21 @@ void ImageProcess::readBodies(Json::Value& root){
 
 
 void ImageProcess::readImage(std::string img_path){
-    cout << img_path << endl;
+    // cout << img_path << endl;
     cv::Mat image = cv::imread(img_path);
     this->imgs.emplace_back(image.clone());
 }
 
+void ImageProcess::readImage(){
+    for(auto it:this->img_paths){
+        readImage(it);
+    }
+}
+
 
 void ImageProcess::showImage(int id, cv::Mat &img){
-    cv::resize(img, img, cv::Size(832, 512));
+    // cv::resize(img, img, cv::Size(832, 512));
+    // cout << img.size() << endl;
     cv::imshow("Img"+to_string(id), img);
     cv::waitKey(0);
 }
@@ -216,9 +223,7 @@ vector<double> Dataset::getRootJoint(const Json::Value &array){
 
 vector<double> Dataset::getPred2DPose(const Json::Value &array){
     vector<double> res;
-    // cout << array.size() << endl;
-    // cout << array[0].size() << endl;
-    // cout << array[0][0].asDouble() << endl;
+
     for(int i=0; i < array.size(); ++i){ //2
         for(int j=0; j<array[i].size(); ++j){
             res.push_back(array[i][j].asDouble());
@@ -285,14 +290,18 @@ void Dataset::clear(){
     this->cameras.clear();
     this->poses.clear();
     this->frames.clear();
+    this->img_paths.clear();
+    this->imgs.clear();
 }
 
 vector<Pose> Dataset::loadData(){
     // return this->poses;
+    return {};
 }
 
 void Dataset::printCamInfo(DataSetCamera &DC){
     ROS_INFO("Test Function..........");
+    cout << "camera: " << DC.getID() << endl;
     cout << "fx: " << DC.fx << "  fy: " << DC.fy << " cx: " << DC.cx << " cy: " << DC.cy << endl;
     cout << "R: " << DC.R << "\n";
     cout << "t: " << DC.t << endl;
@@ -300,29 +309,30 @@ void Dataset::printCamInfo(DataSetCamera &DC){
 
 void Dataset::testData(int num){
     ROS_INFO("Test Dataset...........");
+
     if(this->img_paths.empty() || this->poses.empty())
         ROS_ERROR("Test ERROR!");
 
-        // 读取图片
-        for(auto it : this->img_paths){
-            readImage(it); // 得到所有图像
-        }
+    // 读取图片
+    for(auto it : this->img_paths){
+        readImage(it); // 得到所有图像
+    }
 
-        // 画点
-        cout << this->poses.size() << endl;
-        cout << this->poses[0].size() << endl;
-        for(int i=0; i < this->poses.size(); ++i){
-            if(this->imgs[i].empty())
-                continue;
+    // 画点
+    cout << this->poses.size() << endl;
+    cout << this->poses[0].size() << endl;
+    for(int i=0; i < this->poses.size(); ++i){
+        if(this->imgs[i].empty())
+            continue;
 
-            cout << "Camera: " << i << " has pose: " << this->poses[i].size() << endl;
-            projection(this->imgs[i], this->poses[i]);
-        }
+        cout << "Camera: " << i << " has pose: " << this->poses[i].size() << endl;
+        projection(this->imgs[i], this->poses[i]);
+    }
 
-        // 显示图像
-        for(int i=0; i < this->imgs.size(); ++i){
-            showImage(i, this->imgs[i]);
-        }
+    // 显示图像
+    for(int i=0; i < imgs.size(); ++i){
+        showImage(i, this->imgs[i]);
+    }
 }
 
 void help(){
@@ -395,38 +405,46 @@ int main(int argc, char** argv){
         ass->addCameraInfo(dataset->getCams()[i], i);
 
 
+    // 相机测试 (ok)
+    // for(int i=0; i<dataset->getCams().size(); ++i){
+    //     dataset->printCamInfo(dataset->getCams()[i]);
+    // }
+
+
     int index = 0;
+    ROS_INFO("There are all %d frames to be tested.", frame_num);
     // 这是所有文件，帧数自定义
     // int file_num = frame_num;
     for(int file_index=0; file_index < frame_num; ++file_index){
         // while(ros::ok()){
-            dataset->clear();
+        dataset->clear();
 
             // 这是一个文件里的所有帧
-            for(int i=0; i<ass_frames.size(); ++i){
-                //预处理
+        for(int i=0; i<ass_frames.size(); ++i){
+            //预处理
+            dataset->addFrames(ass_frames);
 
-                dataset->addFrames(ass_frames);
-
-                dataset->readJSONFile(file_index, ass_frames.size());
-
-                dataset->testData(2); //测试用
-
-                // dataset->readImage();
-                //
-                // // 匹配
-                // ass->addPoseInfo(dataset->getPoses());
-                // if(i != 0)  ass->run(0, i, false, Mode::Ceres);
-                //
-                // vis->addImage(dataset->getImage());
-                //
-                // vis->showImage(index);
-                //
-                // vis->drawSkeletons(ass->getResult(), cam2world);
-
-                // gl->run();
-            // }
+            dataset->readJSONFile(i, ass_frames.size());
         }
+
+        // dataset->testData(ass_frames.size()); //测试用（ok）
+
+        dataset->readImage();
+
+        // 匹配
+        ass->addPoseInfo(dataset->getPoses());
+        ass->run(Mode::triangulation);
+        //
+        // vis->addImage(dataset->getImage());
+        //
+        // vis->showImage(index);
+        //
+        // vis->drawSkeletons(ass->getResult(), cam2world);
+
+        // gl->run();
+
+
+
     //
     //     // vis->transRootJoint(dataset->getPoses(), dataset->cameras[i]);
     //
