@@ -608,6 +608,7 @@ void Associate::triangulatePose(const pair<int, int> & it, const int reference, 
     vector<Joint_2d> pose_2d_1 = this->inputs[reference][it.first].get2DPose();
     vector<Joint_2d> pose_2d_2 = this->inputs[target][it.second].get2DPose();
 
+    vector<double> depths[2];
     for(int i=0; i<pose_2d_1.size(); ++i){
         if(pose_2d_1[i].p < 1.5 || pose_2d_2[i].p < 1.5)
             continue;
@@ -616,17 +617,65 @@ void Associate::triangulatePose(const pair<int, int> & it, const int reference, 
              << "    x2:" << pose_2d_2[i].x << " " << pose_2d_2[i].y << endl;
 
         // 迭代初始值
-        vector<double> depths = triangularPoints(pose_2d_1[i], pose_2d_2[i], reference, target);
-        if(depths.empty())
-            continue;
+        vector<double> depth = triangularPoints(pose_2d_1[i], pose_2d_2[i], reference, target);
+        // if(depths.empty())
+        //     continue;
 
         cout << depths[0] << " " << depths[1] << endl;
 
-        optimizer3DLoc();
+        depths[0].push_back(depth[0]);
+        depths[1].push_back(depth[1]);
     }
+
+    this->inputs[reference][it.first].update3DPose(depths[0], this->cameras[reference], false);
+    this->inputs[target][it.second].update3DPose(depths[1], this->cameras[target], false);
+
+    // 优化计算其关节位置信息
+    optimizer3DLoc(this->inputs[reference][it.first]);
+    optimizer3DLoc(this->inputs[target][it.second]);
 }
 
+void Associate::optimizer3DLoc(Pose &pose, const int reference, const int target){
+    if(!updated) return;
 
+    // vector<Joint_3d> pose_3d = pose.get3DPose();
+    // int count = 0;
+    // for(int p = 0; p < pose_3d.size(); ++p) {
+    //     double point[3] = {pose_3d[p].x, pose_3d[p].y, pose_3d[p].z};
+    //     ceres::Problem problem;
+    //
+    //     double prob = pose_3d[p].p;
+    //     //ROS_INFO("prob:%.2f", prob);
+    //     if (prob > 0) {
+    //
+    //         count++;
+    //         int cam = AvailablePose[as_id[i]].camera_index-1;
+    //         problem.AddResidualBlock(     // 向问题中添加误差项
+    //               // 使用自动求导，模板参数：误差类型，输出维度，输入维度，维数要与前面struct中一致
+    //             new ceres::AutoDiffCostFunction<CostFunction_3d_loc, 1, 3>(
+    //                 new CostFunction_3d_loc(camera_rot[cam], camera_trans[cam], cam_param[cam], AvailablePose[as_id[i]].pose_joints[p])
+    //             ),
+    //             nullptr,            // 核函数，这里不使用，为空
+    //             point               // 待估计参数
+    //             );
+    //     }
+    //
+    //     if(count >= 2) {
+    //         ceres::Solver::Summary summary;
+    // 		ceres::Solve(options, &problem, &summary);
+    //         //cout << summary.BriefReport() << endl;
+    //
+    //         pose_joints_3d[p].available = true;
+    //         pose_joints_3d[p].x = point[0];
+    //         pose_joints_3d[p].y = point[1];
+    //         pose_joints_3d[p].z = point[2];
+    //     }
+    //     else {
+    //         //ROS_INFO("no enough angle");
+    //         pose_joints_3d[p].available = false;
+    //     }
+    // }
+}
 
 vector<double> Associate::triangularPoints(const Joint_2d& joint_1, const Joint_2d& joint_2, const int reference, const int target){
 
@@ -634,6 +683,7 @@ vector<double> Associate::triangularPoints(const Joint_2d& joint_1, const Joint_
     Eigen::Matrix<double, 3, 1> nor_joint_1 = normalization(joint_1, reference);
     Eigen::Matrix<double, 3, 1> nor_joint_2 = normalization(joint_2, target);
 
+    vector<double> depths[2] = {0.0, 0.0}
     Eigen::Matrix<double, 3, 2> A;
     A << nor_joint_2, this->R * nor_joint_1;
 
@@ -644,7 +694,8 @@ vector<double> Associate::triangularPoints(const Joint_2d& joint_1, const Joint_
     const Eigen::Vector2d depth =
         -AtA.inverse()* A.transpose() * this->t;
 
-    vector<double> depths = {fabs(depth[0]), fabs(depth[1])};
+    depths[0] = fabs(depth[0]);
+    depths[1] = fabs(depth[1]);
 
     return depths;
 }

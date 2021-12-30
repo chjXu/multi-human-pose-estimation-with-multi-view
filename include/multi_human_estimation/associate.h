@@ -188,6 +188,9 @@ protected:
      */
     void triangularCamera(const int reference, const int target, const Mode& mode);
 
+
+    void optimizer3DLoc(Pose &, const int reference, const int target);
+
     /**
      * @description:
      * @param {Joint_2d&} point_1

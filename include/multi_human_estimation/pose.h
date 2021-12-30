@@ -201,6 +201,7 @@ private:
     int root_id;
     int label;
     bool updated;
+    int num_kpt;
 
     vector<Root_3d> root_3d;
     vector<Joint_2d> pose_2d;
