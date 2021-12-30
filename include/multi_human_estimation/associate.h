@@ -12,6 +12,7 @@
 #include <vector>
 #include <list>
 #include <map>
+#include <cmath>
 
 #include <ceres/ceres.h>
 #include <ceres/rotation.h>
@@ -167,15 +168,18 @@ protected:
      * @param {int} method. 0 means triangulation by ourself. 1 means OpenCV, 2 means Ceres
      * @return {*}
      */
-    void triangularization(const vector<pair<int, int> > &, const int reference, const int target, int method);
+    void triangularization(const vector<pair<int, int> > &, const int reference, const int target, const Mode& method);
 
+
+    void triangulatePose(const pair<int, int> &, const int reference, const int target);
     /**
      * @description:
      * @param {*}
      * @return {*}
      */
-    vector<double> triangularPoints(const Joint_2d&, const Joint_2d&);
+    vector<double> triangularPoints(const Joint_2d&, const Joint_2d&, const int reference, const int target);
 
+    Eigen::Matrix<double, 3, 1> normalization(const Joint_2d&, const int ref);
     /**
      * @description:
      * @param {int} reference
@@ -227,7 +231,7 @@ protected:
      * @param {DataSetCamera} &DC
      * @return {*}
      */
-    cv::Point2f pixel2cam(const Joint_2d& p, const cv::Mat& K);
+    cv::Point2d pixel2cam(const Joint_2d& p, const DataSetCamera& DC);
 
     /**
      * @description:

@@ -67,7 +67,7 @@ public:
     vector<DataSetCamera> cameras;  //相机参数，与姿态顺序对应
 
 // protected:
-    virtual void readImagePath(Json::Value& root, int frame_index);
+    virtual void readImagePath(Json::Value& root);
 
     /**
      * @brief 读取相机参数函数
@@ -122,6 +122,10 @@ private:
 
     vector<double> getPred2DPose(const Json::Value &);
 
+    bool is2DPoseValid(const vector<double> &);
+
+    bool isRootValid(const vector<double> &);
+
 public:
     string _campus_dataset_path;
     string _shelf_dataset_path;
@@ -157,7 +161,7 @@ public:
      * @param frame_index JSON文件索引
      * 输出：
      */
-    void readJSONFile(int file_index, int frame_index, int ass_num);
+    void readJSONFile(int file_index, int ass_num);
 
     /**
      * @brief 从JSON文件中读取相机信息，因为相机信息仅需要读取一遍即可

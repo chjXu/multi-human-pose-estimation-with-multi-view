@@ -137,11 +137,17 @@ void ImageProcess::readCameraParametersFromFile(Json::Value &root){
     }
 }
 
-void ImageProcess::readImagePath(Json::Value& root, int frame){
-    string image_path = "/media/xuchengjun/D/dataset/cmu_test/" + to_string(frame) + "/";
-    image_path += root["img_name"].asString();
-    // cout << image_path << endl;
-    this->img_paths.push_back(image_path);
+void ImageProcess::readImagePath(Json::Value& root){
+    for(int i=0; i<root["img_to_json"].size(); ++i){
+        string
+        image_path = "/media/xuchengjun/D/dataset/cmu_test/"
+                   + root["img_to_json"][i]["cam_id"].asString() + "/";
+
+        image_path += root["img_name"].asString();
+        // cout << image_path << endl;
+        this->img_paths.push_back(image_path);
+    }
+
 }
 
 
@@ -181,7 +187,7 @@ void ImageProcess::projection(cv::Mat &img, vector<Pose> &pose){
     }
 }
 
-void Dataset::readJSONFile(int file_index, int frame_index, int ass_num){
+void Dataset::readJSONFile(int file_index, int ass_num){
 
     char path [100];
     sprintf(path, "%d/%08d.json", ass_num, file_index); // 2, 00000000
@@ -190,7 +196,7 @@ void Dataset::readJSONFile(int file_index, int frame_index, int ass_num){
     fin.open(this->root_path + "/data/" + path, std::ios::binary);
 
     if(reader.parse(fin, root, false)){
-        readImagePath(root, frame_index);
+        readImagePath(root);
 
         // 在可视化测试的时候，这儿要打开，不然报错
         // readCameraParametersFromFile(root);
@@ -218,7 +224,10 @@ vector<double> Dataset::getRootJoint(const Json::Value &array){
         }
     }
 
-    return res;
+    if(isRootValid(res))
+        return res;
+    else
+        return {};
 }
 
 vector<double> Dataset::getPred2DPose(const Json::Value &array){
@@ -230,8 +239,54 @@ vector<double> Dataset::getPred2DPose(const Json::Value &array){
         }
     }
 
-    return res;
+    if(is2DPoseValid(res))
+        return res;
+    else
+        return {};
 }
+
+bool Dataset::is2DPoseValid(const vector<double> & pose){
+    int count = 0;
+	double prob_sum = 0.0;
+	for(int i=0;i < pose.size() / 3;i++)
+	{
+		if(pose[3 * i + 2] > 1.0)
+		{
+			prob_sum += pose[3 * i + 2];
+			count++;
+		}
+	}
+
+    // cout << prob_sum << " " << count << " " << prob_sum/count << endl;
+	double prob_eval = prob_sum/count;
+
+	if(prob_eval > 1.8)
+        return true;
+    else
+        return false;
+}
+
+bool Dataset::isRootValid(const vector<double> & pose){
+    int count = 0;
+	double prob_sum = 0.0;
+	for(int i=0;i < pose.size() / 4;i++)
+	{
+		if(pose[4 * i + 3] > 1.0)
+		{
+			prob_sum += pose[4 * i + 3];
+			count++;
+		}
+	}
+
+    // cout << prob_sum << " " << count << " " << prob_sum/count << endl;
+	double prob_eval = prob_sum/count;
+
+	if(prob_eval > 1.8)
+        return true;
+    else
+        return false;
+}
+
 
 void Dataset::readBodies(Json::Value& root){
     this->poses.clear();
@@ -247,6 +302,10 @@ void Dataset::readBodies(Json::Value& root){
             int cam_id = root["img_to_json"][i]["cam_id"].asInt();
             vector<double> joint_2d = getPred2DPose(root["img_to_json"][i]["pred_2d"][j]);
             vector<double> root_3d = getRootJoint(root["img_to_json"][i]["root_3d"][j]);
+
+            // 判断人体姿态是否有效，对无效的姿态进行删除
+            if(joint_2d.empty() || root_3d.empty())
+                continue;
 
             Pose new_pose;
            // cout << "原始相机ID： " << root["camera"]["id"].asInt() << endl;
@@ -319,8 +378,8 @@ void Dataset::testData(int num){
     }
 
     // 画点
-    cout << this->poses.size() << endl;
-    cout << this->poses[0].size() << endl;
+    // cout << this->poses.size() << endl;
+    // cout << this->poses[0].size() << endl;
     for(int i=0; i < this->poses.size(); ++i){
         if(this->imgs[i].empty())
             continue;
@@ -419,13 +478,9 @@ int main(int argc, char** argv){
         // while(ros::ok()){
         dataset->clear();
 
-            // 这是一个文件里的所有帧
-        for(int i=0; i<ass_frames.size(); ++i){
-            //预处理
-            dataset->addFrames(ass_frames);
+        dataset->addFrames(ass_frames);
 
-            dataset->readJSONFile(file_index, i, ass_frames.size());
-        }
+        dataset->readJSONFile(file_index, ass_frames.size());
 
         // dataset->testData(ass_frames.size()); //测试用（ok）
 

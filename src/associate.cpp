@@ -80,6 +80,8 @@ void Associate::run(const Mode&& mode){
 }
 
 vector<Pose> Associate::poseFusion(int reference, int target, const Mode& mode){
+    vector<Pose> pose_tmp;
+
     // 通过tf监听得到相机相对姿态
     // triangularCamera(reference, target, mode);
 
@@ -87,6 +89,13 @@ vector<Pose> Associate::poseFusion(int reference, int target, const Mode& mode){
     triangularCamera(reference, target, mode); //得到R和t
     generatePair(this->inputs[reference], this->inputs[target]);
     fusionOfEachFrame(this->inputs[reference], this->inputs[target]);
+    vector<pair<int, int> > ass_pairs = extract2DAssociation();
+
+    // 通过三角化计算3D姿态。
+    // 应当做如下考虑：
+    // 1.计算后的3D姿态应当在哪个坐标系中展示（将更新后的3D姿态分别保存至对应的坐标系下）
+    // 2.未配对的2D进行查找并保存
+    triangularization(ass_pairs, reference, target, mode);
 
 
     return {};
@@ -124,17 +133,17 @@ void Associate::generatePair(vector<Pose>& pose_1, vector<Pose>& pose_2){
     ROS_INFO("Camera 1 has %ld person, camera 2 has %ld person.", pose_1.size(), pose_2.size());
 
     if(pose_1.empty() && pose_2.empty()){
-        ROS_ERROR("There are 0 humans in Camera %d and Camera %d.", this->reference, this->target);
+        ROS_ERROR("There are no humans in Camera %d and Camera %d.", this->reference, this->target);
         return;
     }
 
     if(pose_1.empty()){
-        ROS_ERROR("There are 0 humans in Camera %d.", this->reference);
+        ROS_ERROR("There are no humans in Camera %d.", this->reference);
         return;
     }
 
     if(pose_2.empty()){
-        ROS_ERROR("There are 0 humans in Camera %d.", this->target);
+        ROS_ERROR("There are no humans in Camera %d.", this->target);
         return;
     }
 
@@ -242,6 +251,7 @@ void Associate::fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2){
     if(this->pose_pairs.empty())
         return;
 
+
     for(auto it = pose_pairs.begin(); it != pose_pairs.end(); ++it){
         calculateCorrespondence(*it);
     }
@@ -267,11 +277,13 @@ void Associate::fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2){
         int id_1 = (*rank_min).getIndex_1();
         int id_2 = (*rank_min).getIndex_2();
 
-        ROS_INFO("The pose %d of camera %d, and the pose %d of camera %d will be paired.",
-                this->reference, id_1, id_2, this->target);
-
         this->inputs[reference][id_1].setLabel(label_ite);
         this->inputs[target][id_2].setLabel(label_ite);
+
+        ROS_INFO("The pose %d of camera %d, and the pose %d of camera %d are paired. And their label are %d, %d.",
+                this->reference, id_1, id_2, this->target,
+                this->inputs[reference][id_1].getLabel(),
+                this->inputs[target][id_2].getLabel());
 
         pose_pairs.erase(rank_min);
 
@@ -321,7 +333,7 @@ bool Associate::calculateCorrespondence(PosePair &pair, const double & threshold
     }
 
     if(sum_EX <= threshold){
-        pair.setDelta(sum_EX);
+        pair.setDelta(fabs(sum_EX));
         return true;
     }
     else
@@ -581,13 +593,74 @@ double Associate::pointTopoint(const Root_3d &root_1, const Root_3d &root_2){
 }
 
 
-void Associate::triangularization(const vector<pair<int, int> > &pose_ass, const int reference, const int target, int method){
+void Associate::triangularization(const vector<pair<int, int> > &pose_ass, const int reference, const int target, const Mode& method){
+    if(pose_ass.empty())
+        return;
 
+    for(auto it : pose_ass){
+        triangulatePose(it, reference, target);
+
+    }
 }
 
-vector<double> Associate::triangularPoints(const Joint_2d& joint_1, const Joint_2d& joint_2){
-    return {};
+
+void Associate::triangulatePose(const pair<int, int> & it, const int reference, const int target){
+    vector<Joint_2d> pose_2d_1 = this->inputs[reference][it.first].get2DPose();
+    vector<Joint_2d> pose_2d_2 = this->inputs[target][it.second].get2DPose();
+
+    for(int i=0; i<pose_2d_1.size(); ++i){
+        if(pose_2d_1[i].p < 1.5 || pose_2d_2[i].p < 1.5)
+            continue;
+
+        cout << "joint: " << i << "  x1: " << pose_2d_1[i].x << " y1: " << pose_2d_1[i].y
+             << "    x2:" << pose_2d_2[i].x << " " << pose_2d_2[i].y << endl;
+
+        // 迭代初始值
+        vector<double> depths = triangularPoints(pose_2d_1[i], pose_2d_2[i], reference, target);
+        if(depths.empty())
+            continue;
+
+        cout << depths[0] << " " << depths[1] << endl;
+
+        optimizer3DLoc();
+    }
 }
+
+
+
+vector<double> Associate::triangularPoints(const Joint_2d& joint_1, const Joint_2d& joint_2, const int reference, const int target){
+
+    // 对关节点进行归一化
+    Eigen::Matrix<double, 3, 1> nor_joint_1 = normalization(joint_1, reference);
+    Eigen::Matrix<double, 3, 1> nor_joint_2 = normalization(joint_2, target);
+
+    Eigen::Matrix<double, 3, 2> A;
+    A << nor_joint_2, this->R * nor_joint_1;
+
+    const Eigen::Matrix2d AtA = A.transpose() * A;
+    if(AtA.determinant() < 0.000001)
+        return {};
+
+    const Eigen::Vector2d depth =
+        -AtA.inverse()* A.transpose() * this->t;
+
+    vector<double> depths = {fabs(depth[0]), fabs(depth[1])};
+
+    return depths;
+}
+
+Eigen::Matrix<double, 3, 1> Associate::normalization(const Joint_2d& joint, const int ref){
+    Eigen::Matrix<double, 3, 1> res;
+
+    cv::Point2d c_p = pixel2cam(joint, this->cameras[ref]);
+
+    res(0, 0) = c_p.x;
+    res(1, 0) = c_p.y;
+    res(2, 0) = 1.0;
+
+    return res;
+}
+
 
 void Associate::transToReference(vector<Pose> &pose, int reference){
 
@@ -598,7 +671,12 @@ void Associate::triangulatePointsWithOpenCV(vector<Joint_2d>& set_1, vector<Join
 
 }
 
-cv::Point2f Associate::pixel2cam(const Joint_2d& p, const cv::Mat& K){
+cv::Point2d Associate::pixel2cam(const Joint_2d& p, const DataSetCamera& DC){
+    return cv::Point2d(
+        (p.x - DC.cx) / DC.fx,
+        (p.y - DC.cy) / DC.fy
+    );
+
     return cv::Point2f(0.0, 0.0);
 }
 
