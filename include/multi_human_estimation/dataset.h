@@ -157,7 +157,7 @@ public:
      * @param frame_index JSON文件索引
      * 输出：
      */
-    void readJSONFile(int frame_index, int ass_num);
+    void readJSONFile(int file_index, int frame_index, int ass_num);
 
     /**
      * @brief 从JSON文件中读取相机信息，因为相机信息仅需要读取一遍即可

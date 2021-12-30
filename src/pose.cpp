@@ -51,9 +51,9 @@ void Pose::setRootPose(vector<double> &root){
         root3d.x = root[4*i] / 100.0;
         root3d.y = root[4*i + 1] / 100.0;
         root3d.z = root[4*i + 2] / 100.0;
-        root3d.p = root[4*i + 3] / 5.0;
+        root3d.p = root[4*i + 3] / 3.0;
 
-        if (root3d.p > 1.0)
+        if (root3d.p > 0.4)
             root3d.available = true;
         else
             root3d.available = false;

@@ -121,6 +121,7 @@ void Associate::generatePair(vector<Pose>& pose_1, vector<Pose>& pose_2){
 
     cout << "--------------------------------------" << endl;
     ROS_INFO("The %d group are starting pairing.", group);
+    ROS_INFO("Camera 1 has %ld person, camera 2 has %ld person.", pose_1.size(), pose_2.size());
 
     if(pose_1.empty() && pose_2.empty()){
         ROS_ERROR("There are 0 humans in Camera %d and Camera %d.", this->reference, this->target);
@@ -299,7 +300,7 @@ bool Associate::calculateCorrespondence(PosePair &pair, const double & threshold
     Pose pose_1 = this->inputs[cam_1][pair.getIndex_1()];
     Pose pose_2 = this->inputs[cam_2][pair.getIndex_2()];
 
-	double sum_EX = 0.0;
+	double sum_EX = INT64_MAX;
 
     vector<Root_3d> root_1 = pose_1.getRootPose();
     vector<Root_3d> root_2 = pose_2.getRootPose();
@@ -310,13 +311,19 @@ bool Associate::calculateCorrespondence(PosePair &pair, const double & threshold
     if(root_1[0].available && root_1[1].available && root_2[0].available && root_2[1].available){
         sum_EX = lineToline(root_1, root_2);
     }
+    else if(!root_1[0].available && root_1[1].available && !root_2[0].available && root_2[1].available){
+        sum_EX = pointTopoint(root_1[1], root_2[1]);
+    }else{
+        if(!root_1[0].available && root_1[1].available && root_2[0].available && root_2[1].available)
+            sum_EX = pointToline(root_1[1], root_2);
+        else
+            sum_EX = pointToline(root_2[1], root_1);
+    }
 
-
-
-    pair.setDelta(sum_EX);
-
-    if(pair.getDelta() <= threshold)
+    if(sum_EX <= threshold){
+        pair.setDelta(sum_EX);
         return true;
+    }
     else
         return false;
 }
@@ -524,7 +531,7 @@ double Associate::lineToline(const vector<Root_3d> &line_1, const vector<Root_3d
     double dis_p = 0.0, sco_p = 0.0;
 
     for(int i=0; i<2; ++i){
-        dis_p += getDistance(line_1[i], line_2[i]);
+        dis_p += getDistance(line_1[i], line_2[i]) * getScore(line_1[i], line_2[i]);
         sco_p += getScore(line_1[i], line_2[i]);
     }
 
@@ -533,12 +540,44 @@ double Associate::lineToline(const vector<Root_3d> &line_1, const vector<Root_3d
 }
 
 double Associate::pointToline(const Root_3d &root, const vector<Root_3d> &line){
-    return 0.0;
+    double res = 0.0;
+
+    this->namada = 0.8;
+    this->miu = 0.2;
+    double dis_lp;
+
+    vector<double> l = {line[1].x - line[0].x, line[1].y - line[0].y, line[1].z - line[0].z};  //方向向量
+    vector<double> v_ = {root.x - line[0].x, root.y - line[0].y, root.z - line[0].z}; // 点向量
+
+    // 空间中的点与线的关系包含共面、重合。
+    // 若重合返回0，若共面则按照下面计算。
+    // 首先，判断点与线的关系
+    if(isParallel(l, v_)){
+        // 重合
+        ROS_INFO("Cross.");
+        return 0.0;
+    }else{
+        // 共面
+        ROS_INFO("Coplaner.");
+        double h_ = dot(v_, l) / computeModel(l);
+        dis_lp = std::sqrt(computeModel(v_) * computeModel(v_) - h_ * h_);
+    }
+
+
+    double dis_p = 0.0, sco_p = 0.0;
+
+
+    dis_p = getDistance(root, line[1]);
+    sco_p = getScore(root, line[1]);
+
+
+    res = (this->namada * dis_lp + this->miu * dis_p * sco_p) / (this->namada + this->miu * sco_p);
+    return res;
 }
 
 
 double Associate::pointTopoint(const Root_3d &root_1, const Root_3d &root_2){
-    return 0.0;
+    return getDistance(root_1, root_2) / getScore(root_1, root_2);
 }
 
 

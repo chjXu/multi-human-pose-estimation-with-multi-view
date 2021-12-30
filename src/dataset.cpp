@@ -181,10 +181,10 @@ void ImageProcess::projection(cv::Mat &img, vector<Pose> &pose){
     }
 }
 
-void Dataset::readJSONFile(int frame_index, int ass_num){
+void Dataset::readJSONFile(int file_index, int frame_index, int ass_num){
 
     char path [100];
-    sprintf(path, "%d/%08d.json", ass_num, frame_index);
+    sprintf(path, "%d/%08d.json", ass_num, file_index); // 2, 00000000
 
     // cout << this->root_path + "/data/" + path << endl;
     fin.open(this->root_path + "/data/" + path, std::ios::binary);
@@ -424,7 +424,7 @@ int main(int argc, char** argv){
             //预处理
             dataset->addFrames(ass_frames);
 
-            dataset->readJSONFile(i, ass_frames.size());
+            dataset->readJSONFile(file_index, i, ass_frames.size());
         }
 
         // dataset->testData(ass_frames.size()); //测试用（ok）
