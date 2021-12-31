@@ -211,4 +211,6 @@ public:
     vector<Pose> loadData();
 
     void testData(int num);
+
+    void saveResult(const vector<Pose> &, std::string output_dir);
 };

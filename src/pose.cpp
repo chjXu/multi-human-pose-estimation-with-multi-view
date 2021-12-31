@@ -48,20 +48,26 @@ void Pose::setCameraID(int _camera_id){
 }
 
 void Pose::set2DPose(vector<double>& joints){
-    if(joints.empty() || joints.size() % 3 != 0) return;
+    if(joints.empty() || joints.size() % 3 != 0){
+        ROS_ERROR("2D Pose is empty.");
+        return;
+    }
 
-    // pose_2d.clear();
     // 关节方法系数
     // cout << "alpha: " << alpha << endl;
     // cout << "belta: " << belta << endl;
 
-    for(int i=0; i<joints.size() / 3; ++i){
+    for(int i=0; i < joints.size() / 3; ++i){
         // Joint_2d joint2d;
         pose_2d[i].x = joints[3*i] * alpha;
         pose_2d[i].y = joints[3*i + 1] * belta;
         pose_2d[i].p = joints[3*i + 2];
         // pose_2d.push_back(joint2d);
     }
+
+    // for(int i=0; i< pose_2d.size(); ++i){
+    //     cout << "id: " << i << " " << pose_2d[i].x << " " << pose_2d[i].y << " " << pose_2d[i].p << endl;
+    // }
 }
 
 
@@ -115,6 +121,7 @@ void Pose::update3DPose(vector<double> &depth, DataSetCamera &DC, bool worldOrCa
         pose_3d[i].z = depth[i];
         pose_3d[i].x = ( pose_2d[i].x - DC.cx ) * pose_3d[i].z / DC.fx;
         pose_3d[i].y = ( pose_2d[i].y - DC.cy ) * pose_3d[i].z / DC.fy;
+        pose_3d[i].available = true;
     }
 
     updated = true;

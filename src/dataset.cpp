@@ -183,6 +183,12 @@ void ImageProcess::projection(cv::Mat &img, vector<Pose> &pose){
         for(unsigned int j=0; j < joints.size(); ++j){
             // cout << joints[j].x << "  " <<  joints[j].y << endl;
             cv::circle(img, cv::Point((int)joints[j].x, (int)joints[j].y), 4, (255,0, 255), 4);
+            cv::putText(img, to_string(j),
+                 cv::Point((int)joints[j].x - 30, (int)joints[j].y),
+                 cv::FONT_HERSHEY_PLAIN,
+                 3,
+                 (0,0, 255),
+                 2);
         }
     }
 }
@@ -233,7 +239,8 @@ vector<double> Dataset::getRootJoint(const Json::Value &array){
 vector<double> Dataset::getPred2DPose(const Json::Value &array){
     vector<double> res;
 
-    for(int i=0; i < array.size(); ++i){ //2
+    // cout << array.size() << endl;
+    for(int i=0; i < array.size(); ++i){
         for(int j=0; j<array[i].size(); ++j){
             res.push_back(array[i][j].asDouble());
         }
@@ -307,6 +314,7 @@ void Dataset::readBodies(Json::Value& root){
             if(joint_2d.empty() || root_3d.empty())
                 continue;
 
+            // cout << "joint_2d: " << joint_2d.size() << endl;
             Pose new_pose;
            // cout << "原始相机ID： " << root["camera"]["id"].asInt() << endl;
             new_pose.setCameraID(cam_id);
@@ -343,6 +351,35 @@ void Dataset::readBodies(Json::Value& root){
     // new_pose.setRootPose(root_3d);
     //
     // poses.push_back(new_pose);  // 保存一个视角下所有的姿态信息
+}
+
+void Dataset::saveResult(const vector<Pose> &poses, std::string output_dir){
+    if(poses.empty()) return;
+
+    //根节点
+	Json::Value root;
+
+    for(int i=0; i<poses.size(); ++i){
+        Json::Value human;
+        for(int j=0; j<poses[i].get3DPose().size(); ++j){
+            Json::Value joint;
+            //子节点
+            joint.append(poses[i].get3DPose()[j].x * 100);
+            joint.append(poses[i].get3DPose()[j].y * 100);
+            joint.append(poses[i].get3DPose()[j].z * 100);
+
+            human["pred_3d"].append(joint);
+        }
+        root["human"].append(human);
+    }
+
+    Json::StyledWriter sw;
+    ofstream os;
+	os.open(output_dir + "demo.json");
+	os << sw.write(root);
+
+    ROS_INFO("Result had been write.");
+	os.close();
 }
 
 void Dataset::clear(){
@@ -433,6 +470,7 @@ int main(int argc, char** argv){
     }
 
     string data_path = "/media/xuchengjun/D/dataset/cmu_test";
+    string output_dir = "/home/xuchengjun/catkin_ws/src/multi_human_estimation/data/res/";
 
     ros::NodeHandle n;
 	ros::Publisher pose_pub = n.advertise<visualization_msgs::Marker>("visualization_marker",1);
@@ -482,13 +520,15 @@ int main(int argc, char** argv){
 
         dataset->readJSONFile(file_index, ass_frames.size());
 
-        // dataset->testData(ass_frames.size()); //测试用（ok）
+        dataset->testData(ass_frames.size()); //测试用（ok）
 
         dataset->readImage();
 
         // 匹配
         ass->addPoseInfo(dataset->getPoses());
         ass->run(Mode::triangulation);
+
+        dataset->saveResult(ass->getResult(), output_dir);
         //
         // vis->addImage(dataset->getImage());
         //

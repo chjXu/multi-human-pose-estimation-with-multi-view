@@ -10,6 +10,7 @@
 #include <iostream>
 #include <vector>
 #include <opencv2/opencv.hpp>
+#include <ros/ros.h>
 
 #include "multi_human_estimation/datasetCameras.h"
 
@@ -17,6 +18,26 @@ using namespace std;
 
 const float alpha = 1920.0 / 832.0;
 const float belta = 1080.0 / 512.0;
+
+
+/*
+人体姿态模型:
+    0. 颈部
+    1. 头
+    2. 髋关节
+    3. 右肩
+    4. 右肘
+    5. 右腕
+    6. 右胯
+    7. 右腿
+    8. 右脚踝
+    9. 左肩
+    10. 左肘
+    11. 左腕
+    12. 左胯
+    13. 左腿
+    14. 左脚踝
+*/
 
 struct Joint_2d
 {
@@ -196,6 +217,11 @@ public:
     bool empty() const{
         return (pose_3d.empty() || pose_2d.empty());
     }
+
+    bool isUpdated(){
+        return updated;
+    }
+
 private:
     int camera_id;
     int root_id;

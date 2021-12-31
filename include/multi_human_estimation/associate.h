@@ -27,6 +27,10 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/calib3d/calib3d.hpp>
 
+// #include <human_pose_msgs/PointWithProb.h>
+// #include <human_pose_msgs/HumanList.h>
+// #include <human_pose_msgs/Human.h>
+
 using namespace std;
 
 enum Mode{
@@ -219,7 +223,7 @@ protected:
      * @param {*}
      * @return {*}
      */
-    vector<Joint_3d> average(const Pose&, const Pose&);
+    Pose average(const Pose&, const Pose&);
 
     /**
      * @description:

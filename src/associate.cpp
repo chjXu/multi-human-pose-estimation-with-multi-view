@@ -23,12 +23,13 @@ void Associate::printPoseInfo(const Pose& pose){
     cout << "It's label is: " << pose.getLabel() << "\n";
 
     vector<Joint_3d> pose_3d = pose.get3DPose();
-    int id = 0;
-    for(auto it : pose_3d){
-        if(it.available)
-            cout << "Joint: " << id << "X: " << it.x << "Y: " << it.y << "Z: " << it.z << endl;
 
-        ++id;
+    for(int i= 0; i < pose_3d.size(); ++i){
+        if(pose_3d[i].available)
+            cout << "Joint: " << i
+                 << "  X: " << pose_3d[i].x
+                 << "  Y: " << pose_3d[i].y
+                 << "  Z: " << pose_3d[i].z << endl;
     }
 }
 
@@ -39,8 +40,9 @@ void Associate::printInfo(const vector<Pose> &poses){
         return;
     }
 
-    ROS_INFO("Cout all poses info within a image.");
-    cout << "The Pose is under camera: " << poses[0].getCameraID() << " and ";
+    ROS_INFO("Print all poses info within a image.");
+    cout << "The Pose is under camera: " << poses[0].getCameraID()
+         << " and the pose number is: " << poses.size() << " and ";
 
     int pose_id = 0;
     for(Pose it : poses){
@@ -60,6 +62,13 @@ void Associate::run(const Mode&& mode){
     this->target = 1;
 
     vector<Pose> pose_tmp = poseFusion(this->reference, this->target, mode);
+
+
+    // 优化计算其关节位置信息
+    // optimizer3DLoc(this->inputs[reference][it.first]);
+    // optimizer3DLoc(this->inputs[target][it.second]);
+
+
 
     // for(int i=0; i < this->inputs.size(); ++i){
     //     if(i==0){
@@ -96,6 +105,10 @@ vector<Pose> Associate::poseFusion(int reference, int target, const Mode& mode){
     // 1.计算后的3D姿态应当在哪个坐标系中展示（将更新后的3D姿态分别保存至对应的坐标系下）
     // 2.未配对的2D进行查找并保存
     triangularization(ass_pairs, reference, target, mode);
+
+    averageProcess(this->inputs[reference], this->inputs[target], ass_pairs);
+
+    printInfo(this->inputs[reference]);
 
 
     return {};
@@ -379,6 +392,7 @@ void Associate::calcualte3DPose(vector<pair<int, int> > & poses_ass, const Mode&
         if(mode == Mode::Ceres){
             ceres::Problem problem;
             ROS_INFO("Start with ceres solver.");
+            cout << "Joint size: " << pose_1.size() << endl;
             for(int i=0; i<pose_1.size(); ++i){
                 cout << "Joint: " << i << " pixel location: " << pose_1[i].x << " " << pose_1[i].y << "  "
                                                              << pose_2[i].x << " " << pose_2[i].y << endl;
@@ -431,13 +445,12 @@ void Associate::averageProcess(vector<Pose>& set_1, vector<Pose>& set_2, vector<
     if(set_1.empty() || set_2.empty()) return;
 
     for(auto it : ass){
-        vector<Joint_3d> joint_3d = average(set_1[it.first], set_2[it.second]);
-
-        this->inputs[this->reference][it.first].update3DPose(joint_3d, this->cameras[this->reference], false);
+        Pose pose = average(set_1[it.first], set_2[it.second]);
+        this->poses_3d.push_back(pose);
     }
 }
 
-vector<Joint_3d> Associate::average(const Pose& pose_1, const Pose& pose_2){
+Pose Associate::average(const Pose& pose_1, const Pose& pose_2){
     if(pose_1.empty() || pose_2.empty()){
         ROS_ERROR("The Pose is empty in average process.");
         return {};
@@ -449,7 +462,7 @@ vector<Joint_3d> Associate::average(const Pose& pose_1, const Pose& pose_2){
     vector<Joint_2d> pose_2d_1 = pose_1.get2DPose();
     vector<Joint_2d> pose_2d_2 = pose_2.get2DPose();
 
-    vector<Joint_3d> new_pose;
+    vector<Joint_3d> pose_3d;
 
     for(int i=0; i<pose_3d_1.size(); ++i){
         Joint_3d joint_3d;
@@ -458,8 +471,11 @@ vector<Joint_3d> Associate::average(const Pose& pose_1, const Pose& pose_2){
         joint_3d.z = (pose_3d_1[i].z * pose_2d_1[i].p + pose_3d_2[i].z * pose_2d_2[i].p) / (pose_2d_1[i].p + pose_2d_2[i].p);
         joint_3d.available = true;
 
-        new_pose.push_back(joint_3d);
+        pose_3d.push_back(joint_3d);
     }
+
+    Pose new_pose;
+    new_pose.set3DPose(pose_3d);
 
     return new_pose;
 }
@@ -599,7 +615,6 @@ void Associate::triangularization(const vector<pair<int, int> > &pose_ass, const
 
     for(auto it : pose_ass){
         triangulatePose(it, reference, target);
-
     }
 }
 
@@ -610,33 +625,26 @@ void Associate::triangulatePose(const pair<int, int> & it, const int reference, 
 
     vector<double> depths[2];
     for(int i=0; i<pose_2d_1.size(); ++i){
-        if(pose_2d_1[i].p < 1.5 || pose_2d_2[i].p < 1.5)
-            continue;
-
         cout << "joint: " << i << "  x1: " << pose_2d_1[i].x << " y1: " << pose_2d_1[i].y
-             << "    x2:" << pose_2d_2[i].x << " " << pose_2d_2[i].y << endl;
+             << "    x2:" << pose_2d_2[i].x << " y2: " << pose_2d_2[i].y << endl;
 
         // 迭代初始值
         vector<double> depth = triangularPoints(pose_2d_1[i], pose_2d_2[i], reference, target);
         // if(depths.empty())
         //     continue;
 
-        cout << depths[0] << " " << depths[1] << endl;
+        cout << depth[0] << " " << depth[1] << endl;
 
         depths[0].push_back(depth[0]);
         depths[1].push_back(depth[1]);
     }
 
-    this->inputs[reference][it.first].update3DPose(depths[0], this->cameras[reference], false);
-    this->inputs[target][it.second].update3DPose(depths[1], this->cameras[target], false);
-
-    // 优化计算其关节位置信息
-    optimizer3DLoc(this->inputs[reference][it.first]);
-    optimizer3DLoc(this->inputs[target][it.second]);
+    this->inputs[reference][it.first].update3DPose(depths[0], this->cameras[reference], true);
+    this->inputs[target][it.second].update3DPose(depths[1], this->cameras[target], true);
 }
 
 void Associate::optimizer3DLoc(Pose &pose, const int reference, const int target){
-    if(!updated) return;
+    if(!pose.isUpdated()) return;
 
     // vector<Joint_3d> pose_3d = pose.get3DPose();
     // int count = 0;
@@ -683,7 +691,11 @@ vector<double> Associate::triangularPoints(const Joint_2d& joint_1, const Joint_
     Eigen::Matrix<double, 3, 1> nor_joint_1 = normalization(joint_1, reference);
     Eigen::Matrix<double, 3, 1> nor_joint_2 = normalization(joint_2, target);
 
-    vector<double> depths[2] = {0.0, 0.0}
+    vector<double> depths = {0.0, 0.0};
+
+    if(joint_1.p < 1.0 || joint_2.p < 1.0)
+        return depths;
+
     Eigen::Matrix<double, 3, 2> A;
     A << nor_joint_2, this->R * nor_joint_1;
 
