@@ -84,6 +84,10 @@ public:
         return this->poses_3d;
     }
 
+    vector<pair<int, int> > getPair() const{
+        return ass_pairs;
+    }
+
 protected:
     /**
      * @brief 生成所有视角下不同姿态可配对的所有可能性
@@ -254,6 +258,9 @@ protected:
      */
     vector<Pose> poseFusion(int reference, int target, const Mode& mode);
 
+
+    vector<Pose> poseFusion(vector<Pose> &, int target, const Mode& mode);
+
     /**
      * @description:
      * @param {*}
@@ -321,6 +328,8 @@ private:
     vector<Joint_3d> pose_3d;
 
     vector<Pose> poses_3d;
+
+    vector<pair<int, int> > ass_pairs;
 
     static int index;
 

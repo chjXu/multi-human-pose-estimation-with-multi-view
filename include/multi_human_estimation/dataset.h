@@ -102,6 +102,7 @@ protected:
     vector<std::string> img_paths;
     // cv::Mat image;
     vector<cv::Mat> imgs;
+    vector<cv::Scalar> colorSets;
 };
 
 
@@ -211,6 +212,8 @@ public:
     vector<Pose> loadData();
 
     void testData(int num);
+
+    void testPair(const vector<pair<int, int> > &);
 
     void saveResult(const vector<Pose> &, std::string output_dir);
 };

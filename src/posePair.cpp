@@ -7,7 +7,7 @@
  */
 #include "multi_human_estimation/posePair.h"
 
-PosePair::PosePair():delta(INT64_MAX){
+PosePair::PosePair():delta(1000){
 
 }
 

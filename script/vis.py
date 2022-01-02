@@ -31,7 +31,8 @@ def vis_result():
         pred_3d = np.array(idata['pred_3d'])
         img_path = osp.join(args.img_dir, "2")
         # embed()
-        img = cv2.imread(img_path)
+        print(img_path + "/0.jpg");
+        img = cv2.imread(img_path + "/0.jpg");
 
         fig = plt.figure(figsize=(20, 10))
         ax1 = fig.add_subplot(121)
@@ -42,14 +43,19 @@ def vis_result():
         ax2 = fig.add_subplot(122, projection='3d')
         for ip in range(len(pred_3d)):
             p3d = pred_3d[ip]
+            # embed()
+            # ax2.scatter(p3d[:,0], p3d[:,1], p3d[:,2], s=200, cmap='jet')
+
             for pair in pairs:
                 # embed()
-                if all(abs(p3d[pair, 0]) < 20) \
-                    and all(abs(p3d[pair, 1]) < 20)\
-                    and all(abs(p3d[pair, 2]) < 20):
-                    continue;
-                else:
+                if all(abs(p3d[pair, 0]) != 0) \
+                    and all(abs(p3d[pair, 1]) != 0)\
+                    and all(abs(p3d[pair, 2]) != 0):
                     ax2.plot(p3d[pair, 0], p3d[pair, 1], p3d[pair, 2], c=colors[ip%len(colors)])
+                    
+                else:
+                    continue;
+
         ax2.view_init(azim=-90, elev=-45)
 
         plt.show()

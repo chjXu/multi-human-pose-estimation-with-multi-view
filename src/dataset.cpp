@@ -1,5 +1,10 @@
 #include "multi_human_estimation/dataset.h"
 
+static cv::Scalar randomColor(cv::RNG &rng){
+    int icolor = (unsigned)rng;
+    return cv::Scalar(icolor & 255, (icolor >> 8) & 255, (icolor >> 16) & 255);
+}
+
 Dataset::Dataset(string data_path, string data_name, int _frame_num):frame_num(_frame_num){
     if(data_name == "CMU"){
         dataname = DataName::cmu;
@@ -22,6 +27,11 @@ Dataset::Dataset(string data_path, string data_name, int _frame_num):frame_num(_
     }
 
     tf_listener = new tf::TransformListener();
+
+    cv::RNG rng(0xFFFFFFFF);
+    for(int i=0; i < 10; ++i){
+        this->colorSets.push_back(randomColor(rng));
+    }
 }
 
 Dataset::~Dataset(){
@@ -180,15 +190,23 @@ void ImageProcess::projection(cv::Mat &img, vector<Pose> &pose){
     for(unsigned int i=0; i < pose.size(); ++i){
         vector<Joint_2d> joints = pose[i].get2DPose();
         // cout << joints.size() << endl;
+
+        cv::putText(img, to_string(pose[i].getLabel()),
+             cv::Point((int)joints[1].x - 50, (int)joints[1].y),
+             cv::FONT_HERSHEY_PLAIN,
+             3,
+             this->colorSets[pose[i].getLabel()],
+             2);
         for(unsigned int j=0; j < joints.size(); ++j){
             // cout << joints[j].x << "  " <<  joints[j].y << endl;
-            cv::circle(img, cv::Point((int)joints[j].x, (int)joints[j].y), 4, (255,0, 255), 4);
-            cv::putText(img, to_string(j),
-                 cv::Point((int)joints[j].x - 30, (int)joints[j].y),
-                 cv::FONT_HERSHEY_PLAIN,
-                 3,
-                 (0,0, 255),
-                 2);
+            cv::circle(img, cv::Point((int)joints[j].x, (int)joints[j].y), 4, this->colorSets[pose[i].getLabel()], 4);
+            // cv::putText(img, to_string(j),
+            //      cv::Point((int)joints[j].x - 30, (int)joints[j].y),
+            //      cv::FONT_HERSHEY_PLAIN,
+            //      3,
+            //      (0,0, 255),
+            //      2);
+
         }
     }
 }
@@ -361,9 +379,13 @@ void Dataset::saveResult(const vector<Pose> &poses, std::string output_dir){
 
     for(int i=0; i<poses.size(); ++i){
         Json::Value human;
+        cout << "Save " << poses[i].get3DPose().size() << " joints result...." << endl;
         for(int j=0; j<poses[i].get3DPose().size(); ++j){
             Json::Value joint;
             //子节点
+            cout << " x: " << poses[i].get3DPose()[j].x <<
+                    " y: " << poses[i].get3DPose()[j].y <<
+                    " z: " << poses[i].get3DPose()[j].z << endl;
             joint.append(poses[i].get3DPose()[j].x * 100);
             joint.append(poses[i].get3DPose()[j].y * 100);
             joint.append(poses[i].get3DPose()[j].z * 100);
@@ -431,6 +453,34 @@ void Dataset::testData(int num){
     }
 }
 
+void Dataset::testPair(const vector<pair<int, int> > &ass){
+    ROS_INFO("Test Pair...........");
+
+    // if(ass.empty()){
+    //     ROS_INFO("There are no paired poses.");
+    //     return;
+    // }
+
+    int label_ite = 0;
+    for(auto it : ass){
+        cout << "pair: " << it.first << " " << it.second << endl;
+        Pose &ref_pose = this->poses[0][it.first];
+        Pose &tar_pose = this->poses[1][it.second];
+
+        ref_pose.setLabel(label_ite);
+        tar_pose.setLabel(label_ite);
+
+        cout << "label: " << ref_pose.getLabel() << " " << tar_pose.getLabel() << endl;
+        ref_pose.setColor(this->colorSets[ref_pose.getLabel()]);
+        tar_pose.setColor(this->colorSets[tar_pose.getLabel()]);
+
+        ++label_ite;
+    }
+
+    testData(2);
+}
+
+
 void help(){
     std::cout << "Please enter two parameters: " << endl;
     std::cout << "The first parameter is dataset name. Choose CMU, Shelf or Campus." << "\n";
@@ -476,8 +526,8 @@ int main(int argc, char** argv){
 	ros::Publisher pose_pub = n.advertise<visualization_msgs::Marker>("visualization_marker",1);
 	ros::Rate loop_rate(20);
 
-    vector<int> ass_frames = {0, 1,
-                        // 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+    vector<int> ass_frames = {0, 1, 2, 3
+                        // 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
                         // 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30
                         };
     if(ass_frames.size() < 0 || ass_frames.size() > 30){
@@ -520,15 +570,16 @@ int main(int argc, char** argv){
 
         dataset->readJSONFile(file_index, ass_frames.size());
 
-        dataset->testData(ass_frames.size()); //测试用（ok）
+        // dataset->testData(ass_frames.size()); //测试用（ok）
 
-        dataset->readImage();
+        // dataset->readImage();
 
         // 匹配
         ass->addPoseInfo(dataset->getPoses());
         ass->run(Mode::triangulation);
 
-        dataset->saveResult(ass->getResult(), output_dir);
+        dataset->testPair(ass->getPair());
+        // dataset->saveResult(ass->getResult(), output_dir); //保存结果
         //
         // vis->addImage(dataset->getImage());
         //

@@ -222,12 +222,20 @@ public:
         return updated;
     }
 
+    void setColor(const cv::Scalar &color);
+
+    cv::Scalar getColor() const{
+        return this->color;
+    }
+
 private:
     int camera_id;
     int root_id;
     int label;
     bool updated;
     int num_kpt;
+
+    cv::Scalar color;
 
     vector<Root_3d> root_3d;
     vector<Joint_2d> pose_2d;

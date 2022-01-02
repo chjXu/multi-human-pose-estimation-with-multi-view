@@ -254,3 +254,7 @@ void Pose::set3DPose(const vector<cv::Point3d>& pose_3d){
         // this->pose_3d.push_back(joint);
     }
 }
+
+void Pose::setColor(const cv::Scalar &color){
+    this->color = color;
+}

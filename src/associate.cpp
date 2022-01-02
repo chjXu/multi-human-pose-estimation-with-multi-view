@@ -20,7 +20,9 @@ Associate::~Associate(){
 
 
 void Associate::printPoseInfo(const Pose& pose){
-    cout << "It's label is: " << pose.getLabel() << "\n";
+    cout << "Camera: " << pose.getCameraID() << endl;
+
+    cout << "Label: " << pose.getLabel() << endl;
 
     vector<Joint_3d> pose_3d = pose.get3DPose();
 
@@ -31,6 +33,7 @@ void Associate::printPoseInfo(const Pose& pose){
                  << "  Y: " << pose_3d[i].y
                  << "  Z: " << pose_3d[i].z << endl;
     }
+    cout << endl;
 }
 
 
@@ -41,8 +44,8 @@ void Associate::printInfo(const vector<Pose> &poses){
     }
 
     ROS_INFO("Print all poses info within a image.");
-    cout << "The Pose is under camera: " << poses[0].getCameraID()
-         << " and the pose number is: " << poses.size() << " and ";
+    // cout << "The Pose is under camera: " << poses[0].getCameraID()
+    //      << " and the pose number is: " << poses.size() << endl;
 
     int pose_id = 0;
     for(Pose it : poses){
@@ -63,21 +66,20 @@ void Associate::run(const Mode&& mode){
 
     vector<Pose> pose_tmp = poseFusion(this->reference, this->target, mode);
 
+    // cout << "Pose_tmp size is: " << pose_tmp.size() << endl;
+    // printInfo(pose_tmp);
 
     // 优化计算其关节位置信息
     // optimizer3DLoc(this->inputs[reference][it.first]);
     // optimizer3DLoc(this->inputs[target][it.second]);
 
+    if(this->inputs.size() > 2){
+        cout << "Inputs size is: " << inputs.size() << endl;
+        for(int i=2; i < this->inputs.size(); ++i){
+            this->target = i;
+        }
+    }
 
-
-    // for(int i=0; i < this->inputs.size(); ++i){
-    //     if(i==0){
-    //         this->reference = 0;
-    //         break;
-    //     }
-    //
-    //     this->target = i;
-    // }
 
     // triangularCamera(this->reference, this->target, mode);
     // generatePair(this->inputs[reference], this->inputs[target]);
@@ -98,7 +100,7 @@ vector<Pose> Associate::poseFusion(int reference, int target, const Mode& mode){
     triangularCamera(reference, target, mode); //得到R和t
     generatePair(this->inputs[reference], this->inputs[target]);
     fusionOfEachFrame(this->inputs[reference], this->inputs[target]);
-    vector<pair<int, int> > ass_pairs = extract2DAssociation();
+    this->ass_pairs = extract2DAssociation();
 
     // 通过三角化计算3D姿态。
     // 应当做如下考虑：
@@ -106,10 +108,38 @@ vector<Pose> Associate::poseFusion(int reference, int target, const Mode& mode){
     // 2.未配对的2D进行查找并保存
     triangularization(ass_pairs, reference, target, mode);
 
-    averageProcess(this->inputs[reference], this->inputs[target], ass_pairs);
 
-    printInfo(this->inputs[reference]);
+    // averageProcess(this->inputs[reference], this->inputs[target], ass_pairs);
 
+    // printInfo(this->inputs[reference]);
+
+    // 保存已经更新的3D姿态
+    for(auto it : this->ass_pairs){
+        pose_tmp.emplace_back(this->inputs[reference][it.first]);
+        pose_tmp.emplace_back(this->inputs[target][it.second]);
+    }
+
+    // 搜索未配对的2D姿态
+    for(auto &it : this->inputs[reference]){
+        if(it.getLabel() < 0){
+            pose_tmp.emplace_back(it);
+        }else{
+            continue;
+        }
+    }
+
+    for(auto &it : this->inputs[target]){
+        if(it.getLabel() < 0){
+            pose_tmp.emplace_back(it);
+        }else{
+            continue;
+        }
+    }
+
+    return pose_tmp;
+}
+
+vector<Pose> Associate::poseFusion(vector<Pose> &pose_tmp, int target, const Mode& mode){
 
     return {};
 }
@@ -266,7 +296,7 @@ void Associate::fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2){
 
 
     for(auto it = pose_pairs.begin(); it != pose_pairs.end(); ++it){
-        calculateCorrespondence(*it);
+        calculateCorrespondence(*it, 1.0);
     }
 
     int count = 1;
@@ -280,8 +310,9 @@ void Associate::fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2){
 
     auto rank_min = min_element(pose_pairs.begin(), pose_pairs.end(), PosePair::comp);
     int label_ite = 1;
-    double threshold = 0.4;
+    double threshold = 1.0;
 
+    // while(!pose_pairs.empty()){
     while(!pose_pairs.empty() && rank_min->getDelta() <= threshold){
         rank_min = min_element(pose_pairs.begin(), pose_pairs.end(), PosePair::comp);
 
@@ -325,7 +356,7 @@ bool Associate::calculateCorrespondence(PosePair &pair, const double & threshold
     Pose pose_1 = this->inputs[cam_1][pair.getIndex_1()];
     Pose pose_2 = this->inputs[cam_2][pair.getIndex_2()];
 
-	double sum_EX = INT64_MAX;
+	double sum_EX = 100;
 
     vector<Root_3d> root_1 = pose_1.getRootPose();
     vector<Root_3d> root_2 = pose_2.getRootPose();
@@ -444,9 +475,15 @@ vector<double> Associate::OptimizerWithCereSolver(const Joint_2d& point_1, const
 void Associate::averageProcess(vector<Pose>& set_1, vector<Pose>& set_2, vector<pair<int, int> >& ass){
     if(set_1.empty() || set_2.empty()) return;
 
-    for(auto it : ass){
-        Pose pose = average(set_1[it.first], set_2[it.second]);
-        this->poses_3d.push_back(pose);
+    bool avg = false;
+
+    if(avg){
+        for(auto it : ass){
+            Pose pose = average(set_1[it.first], set_2[it.second]);
+            this->poses_3d.push_back(pose);
+        }
+    }else{
+        this->poses_3d = set_1;
     }
 }
 
@@ -605,6 +642,7 @@ double Associate::pointToline(const Root_3d &root, const vector<Root_3d> &line){
 
 
 double Associate::pointTopoint(const Root_3d &root_1, const Root_3d &root_2){
+    ROS_INFO("PointTOPoint.");
     return getDistance(root_1, root_2) / getScore(root_1, root_2);
 }
 
