@@ -101,14 +101,14 @@ protected:
      * 输入：两帧图像数据
      * 输出：修改一个公共3维姿态
      */
-    void fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2);
+    void fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2, bool inc = false);
 
     /**
      * @brief 数据融合
      * 输入：3D关节和其它2D信息
      * 输出：修改一个公共3维姿态
      */
-    void fusionOfIncremental(int , int);
+    // void fusionOfIncremental(int , int);
 
     /**
      * @brief 计算置信度
@@ -196,6 +196,8 @@ protected:
      */
     void triangularCamera(const int reference, const int target, const Mode& mode);
 
+    // void triangularCamera(const Pose &, const int target, const Mode& mode);
+
 
     void optimizer3DLoc(Pose &, const int reference, const int target);
 
@@ -259,7 +261,7 @@ protected:
     vector<Pose> poseFusion(int reference, int target, const Mode& mode);
 
 
-    vector<Pose> poseFusion(vector<Pose> &, int target, const Mode& mode);
+    vector<Pose> IncrementalPoseFusion(vector<Pose> &, int target, const Mode& mode);
 
     /**
      * @description:

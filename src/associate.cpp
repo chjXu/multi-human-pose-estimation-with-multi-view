@@ -76,7 +76,7 @@ void Associate::run(const Mode&& mode){
     if(this->inputs.size() > 2){
         cout << "Inputs size is: " << inputs.size() << endl;
         for(int i=2; i < this->inputs.size(); ++i){
-            this->target = i;
+            pose_tmp = IncrementalPoseFusion(pose_tmp, i, mode);
         }
     }
 
@@ -89,6 +89,23 @@ void Associate::run(const Mode&& mode){
     // getPoseResult(this->reference);
 
 }
+
+vector<Pose> Associate::IncrementalPoseFusion(vector<Pose> &pose_tmp, int target, const Mode& mode){
+    if(pose_tmp.empty()) return {};
+
+    for(auto it : pose_tmp){
+        triangularCamera(it.getCameraID(), target);
+        generatePair(pose_tmp, this->inputs[target]);
+        fusionOfEachFrame(pose_tmp, this->inputs[target], true);
+
+        this->ass_pairs = extract2DAssociation();
+
+        // triangularization(ass_pairs, reference, target, mode);
+    }
+
+    return {};
+}
+
 
 vector<Pose> Associate::poseFusion(int reference, int target, const Mode& mode){
     vector<Pose> pose_tmp;
@@ -139,10 +156,12 @@ vector<Pose> Associate::poseFusion(int reference, int target, const Mode& mode){
     return pose_tmp;
 }
 
-vector<Pose> Associate::poseFusion(vector<Pose> &pose_tmp, int target, const Mode& mode){
-
-    return {};
-}
+// void Associate::fusionOfIncremental(int reference, int target){
+//     if(reference == target)
+//         ROS_ERROR("The number of fusion frame is wrong.");
+//
+//     fusionOfEachFrame(this->inputs[reference], this->inputs[target]);
+// }
 
 
 void Associate::addPoseInfo(const vector<vector<Pose>> &framePoses){
@@ -173,24 +192,25 @@ void Associate::generatePair(vector<Pose>& pose_1, vector<Pose>& pose_2){
 
     cout << "--------------------------------------" << endl;
     ROS_INFO("The %d group are starting pairing.", group);
-    ROS_INFO("Camera 1 has %ld person, camera 2 has %ld person.", pose_1.size(), pose_2.size());
+    ROS_INFO("Reference camera has %ld person, target camera has %ld person.", pose_1.size(), pose_2.size());
 
     if(pose_1.empty() && pose_2.empty()){
-        ROS_ERROR("There are no humans in Camera %d and Camera %d.", this->reference, this->target);
+        ROS_ERROR("There are no humans in reference camera and target camera.");
         return;
     }
 
     if(pose_1.empty()){
-        ROS_ERROR("There are no humans in Camera %d.", this->reference);
+        ROS_ERROR("There are no humans in reference camera.");
         return;
     }
 
     if(pose_2.empty()){
-        ROS_ERROR("There are no humans in Camera %d.", this->target);
+        ROS_ERROR("There are no humans in target camera.");
         return;
     }
 
     this->pose_pairs.clear();
+
 
     for(int i=0; i<pose_1.size(); ++i){
         for(int j=0; j<pose_2.size(); ++j){
@@ -203,6 +223,7 @@ void Associate::generatePair(vector<Pose>& pose_1, vector<Pose>& pose_2){
             this->pose_pairs.push_back(pair);
         }
     }
+
 
     ROS_INFO("Total pose pairs : %d.", (int)this->pose_pairs.size());
     ++group;
@@ -282,15 +303,7 @@ void Associate::triangularCamera(int reference, int target, const Mode& mode){
 }
 
 
-void Associate::fusionOfIncremental(int reference, int target){
-    if(reference == target)
-        ROS_ERROR("The number of fusion frame is wrong.");
-
-    fusionOfEachFrame(this->inputs[reference], this->inputs[target]);
-}
-
-
-void Associate::fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2){
+void Associate::fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2, bool inc){
     if(this->pose_pairs.empty())
         return;
 
@@ -321,8 +334,12 @@ void Associate::fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2){
         int id_1 = (*rank_min).getIndex_1();
         int id_2 = (*rank_min).getIndex_2();
 
-        this->inputs[reference][id_1].setLabel(label_ite);
-        this->inputs[target][id_2].setLabel(label_ite);
+        if(inc){
+            this->inputs[target][id_2].setLabel(label_1_old);
+        }else{
+            this->inputs[reference][id_1].setLabel(label_ite);
+            this->inputs[target][id_2].setLabel(label_ite);
+        }
 
         ROS_INFO("The pose %d of camera %d, and the pose %d of camera %d are paired. And their label are %d, %d.",
                 this->reference, id_1, id_2, this->target,
