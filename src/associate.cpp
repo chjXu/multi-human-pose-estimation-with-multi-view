@@ -64,7 +64,7 @@ void Associate::run(const Mode&& mode){
     this->reference = 0;
     this->target = 1;
 
-    vector<Pose> pose_tmp = poseFusion(this->reference, this->target, mode);
+    this->pose_tmp = poseFusion(this->reference, this->target, mode);
 
     // cout << "Pose_tmp size is: " << pose_tmp.size() << endl;
     // printInfo(pose_tmp);
@@ -73,34 +73,26 @@ void Associate::run(const Mode&& mode){
     // optimizer3DLoc(this->inputs[reference][it.first]);
     // optimizer3DLoc(this->inputs[target][it.second]);
 
-    if(this->inputs.size() > 2){
-        cout << "Inputs size is: " << inputs.size() << endl;
-        for(int i=2; i < this->inputs.size(); ++i){
-            pose_tmp = IncrementalPoseFusion(pose_tmp, i, mode);
-        }
-    }
-
-
-    // triangularCamera(this->reference, this->target, mode);
-    // generatePair(this->inputs[reference], this->inputs[target]);
-    // fusionOfIncremental(this->reference, this->target);
-    // vector<pair<int, int> > poses_ass = extract2DAssociation();
-    // calcualte3DPose(poses_ass, mode);
-    // getPoseResult(this->reference);
+    // if(this->inputs.size() > 2){
+    //     cout << "Inputs size is: " << inputs.size() << endl;
+    //     for(int i=2; i < this->inputs.size(); ++i){
+    //         pose_tmp = IncrementalPoseFusion(pose_tmp, i, mode);
+    //     }
+    // }
 
 }
 
 vector<Pose> Associate::IncrementalPoseFusion(vector<Pose> &pose_tmp, int target, const Mode& mode){
     if(pose_tmp.empty()) return {};
 
-    for(auto it : pose_tmp){
-        triangularCamera(it.getCameraID(), target);
-        generatePair(pose_tmp, this->inputs[target]);
+    for(auto &it : pose_tmp){
+        triangularCamera(it.getCameraID(), target, mode);
+        generatePair(it, this->inputs[target]);
         fusionOfEachFrame(pose_tmp, this->inputs[target], true);
 
-        this->ass_pairs = extract2DAssociation();
+        this->ass_pairs = extract2DAssociation(pose_tmp, target);
 
-        // triangularization(ass_pairs, reference, target, mode);
+        triangularization(ass_pairs, reference, target, mode, true);
     }
 
     return {};
@@ -229,6 +221,27 @@ void Associate::generatePair(vector<Pose>& pose_1, vector<Pose>& pose_2){
     ++group;
 }
 
+void Associate::generatePair(Pose& pose_1, vector<Pose>& pose_2){
+    if(pose_2.empty()){
+        ROS_ERROR("There are no humans in target camera.");
+        return;
+    }
+
+    this->pose_pairs.clear();
+
+    
+    for(int i=0; i < pose_2.size(); ++i){
+        PosePair pair;
+        pair.setGroup(i);
+        pair.setLabel(pose_1.getLabel(), pose_2[i].getLabel());
+        pair.setIndex(0, i);
+        pair.setCam(pose_1.getCameraID(), pose_2[i].getCameraID());
+
+        this->pose_pairs.push_back(pair);
+    }
+
+}
+
 void Associate::triangularCamera(int reference, int target, const Mode& mode){
     bool listening = false;
 
@@ -307,14 +320,14 @@ void Associate::fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2, bo
     if(this->pose_pairs.empty())
         return;
 
-
     for(auto it = pose_pairs.begin(); it != pose_pairs.end(); ++it){
-        calculateCorrespondence(*it, 1.0);
+        calculateCorrespondence(*it, 2.0);
     }
+
 
     int count = 1;
     for(auto it = pose_pairs.begin(); it != pose_pairs.end(); ++it){
-        ROS_INFO("Pair: %d, and index_1: %d, index_2: %d, label_1: %d, label_2: %d, score is: %f.",
+        ROS_INFO("Pair: %d, and %d:%d, label_1: %d, label_2: %d, score is: %f.",
                   count, (*it).getIndex_1(), (*it).getIndex_2(), (*it).getLabel_1(), (*it).getLabel_2(),
                   (*it).getDelta());
 
@@ -323,11 +336,12 @@ void Associate::fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2, bo
 
     auto rank_min = min_element(pose_pairs.begin(), pose_pairs.end(), PosePair::comp);
     int label_ite = 1;
-    double threshold = 1.0;
+    double threshold = 1.5;
 
     // while(!pose_pairs.empty()){
     while(!pose_pairs.empty() && rank_min->getDelta() <= threshold){
-        rank_min = min_element(pose_pairs.begin(), pose_pairs.end(), PosePair::comp);
+        
+        ROS_INFO("pair: %d:%d is min.", (*rank_min).getIndex_1(), (*rank_min).getIndex_2());
 
         int label_1_old = (*rank_min).getLabel_1();
         int label_2_old = (*rank_min).getLabel_2();
@@ -341,20 +355,21 @@ void Associate::fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2, bo
             this->inputs[target][id_2].setLabel(label_ite);
         }
 
-        ROS_INFO("The pose %d of camera %d, and the pose %d of camera %d are paired. And their label are %d, %d.",
-                this->reference, id_1, id_2, this->target,
-                this->inputs[reference][id_1].getLabel(),
-                this->inputs[target][id_2].getLabel());
+        // ROS_INFO("The pose %d of camera %d, and the pose %d of camera %d are paired. And their label are %d, %d.",
+        //         this->reference, id_1, id_2, this->target,
+        //         this->inputs[reference][id_1].getLabel(),
+        //         this->inputs[target][id_2].getLabel());
 
         pose_pairs.erase(rank_min);
 
-        for(auto it = this->pose_pairs.begin(); it != this->pose_pairs.end();){
-            if((*it).getLabel_1() == label_1_old || (*it).getLabel_2() == label_2_old ||
-               (*it).getLabel_1() == label_2_old || (*it).getLabel_2() == label_1_old){
+        for(auto it = this->pose_pairs.begin(); it != this->pose_pairs.end(); ++it){
+            if((*it).getLabel_1() == label_1_old || (*it).getLabel_2() == label_2_old){
                 it = pose_pairs.erase(it);
+                ROS_INFO("pair: %d:%d erased", (*it).getIndex_1(), (*it).getIndex_2());
             }
         }
 
+        rank_min = min_element(pose_pairs.begin(), pose_pairs.end(), PosePair::comp);
         ++label_ite;
     }
 
@@ -367,11 +382,11 @@ bool Associate::calculateCorrespondence(PosePair &pair, const double & threshold
     cam_1 = pair.getCam_1();
     cam_2 = pair.getCam_2();
 
-    assert(this->reference = cam_1);
-    assert(this->target = cam_2);
+    // assert(this->reference = cam_1);
+    // assert(this->target = cam_2);
 
-    Pose pose_1 = this->inputs[cam_1][pair.getIndex_1()];
-    Pose pose_2 = this->inputs[cam_2][pair.getIndex_2()];
+    Pose pose_1 = this->inputs[this->reference][pair.getIndex_1()];
+    Pose pose_2 = this->inputs[this->target][pair.getIndex_2()];
 
 	double sum_EX = 100;
 
@@ -393,8 +408,9 @@ bool Associate::calculateCorrespondence(PosePair &pair, const double & threshold
             sum_EX = pointToline(root_2[1], root_1);
     }
 
+    // cout << sum_EX << endl;
+    pair.setDelta(fabs(sum_EX));
     if(sum_EX <= threshold){
-        pair.setDelta(fabs(sum_EX));
         return true;
     }
     else
@@ -415,7 +431,28 @@ vector<pair<int, int> > Associate::extract2DAssociation(){
             if(pose_1.getLabel() == pose_2.getLabel()){
                 pose_ass.emplace_back(std::pair<int, int>(i, j));
             }
+        }
+    }
 
+    ROS_INFO("Pose generated: %d", (int)pose_ass.size());
+    return pose_ass;
+}
+
+vector<pair<int, int> > Associate::extract2DAssociation(const vector<Pose> &pose_tmp, const int target){
+    vector<pair<int, int> > pose_ass;
+    map<int, int> PoseList;
+
+    for(int i = 0; i < pose_tmp.size(); ++i) {
+        Pose pose_1 = pose_tmp[i];
+        if(pose_1.getLabel() < 0) continue;
+
+        for(int j = 0; j < this->inputs[target].size(); ++j){
+            Pose pose_2 = this->inputs[target][j];
+            if(pose_2.getLabel() < 0) continue;
+
+            if(pose_1.getLabel() == pose_2.getLabel()){
+                pose_ass.emplace_back(std::pair<int, int>(i, j));
+            }
         }
     }
 
@@ -547,6 +584,8 @@ vector<Root_3d> Associate::transToWorldOfRoot(const vector<Root_3d> &root, const
         Root_3d r_;
         Eigen::Matrix<double, 3, 1> joint;
         joint << it.x, it.y, it.z;
+
+        // cout << it.x << " " << it.y << " " << it.z << endl;
         joint = DC.R * joint + DC.t;
 
         r_.x = joint(0, 0);
@@ -579,8 +618,8 @@ double Associate::getScore(const Root_3d & root_1, const Root_3d & root_2){
 double Associate::lineToline(const vector<Root_3d> &line_1, const vector<Root_3d> &line_2){
     double res = 0.0;
 
-    this->namada = 0.8;
-    this->miu = 0.2;
+    this->namada = 0.5;
+    this->miu = 0.5;
     double dis_l;
 
     vector<double> l1 = {line_1[1].x - line_1[0].x, line_1[1].y - line_1[0].y, line_1[1].z - line_1[0].z};  //方向向量
@@ -598,6 +637,7 @@ double Associate::lineToline(const vector<Root_3d> &line_1, const vector<Root_3d
         // 平行
         ROS_INFO("Parallel.");
         dis_l = computeModel(crossMulti(v_, l2)) / computeModel(l2);
+        // cout << dis_l << endl;
         if(dis_l < 1e-4){
             ROS_INFO("Cross or same.");
             return 0.0;
@@ -664,12 +704,16 @@ double Associate::pointTopoint(const Root_3d &root_1, const Root_3d &root_2){
 }
 
 
-void Associate::triangularization(const vector<pair<int, int> > &pose_ass, const int reference, const int target, const Mode& method){
+void Associate::triangularization(const vector<pair<int, int> > &pose_ass, const int reference, const int target, const Mode& method, bool inc){
     if(pose_ass.empty())
         return;
 
     for(auto it : pose_ass){
-        triangulatePose(it, reference, target);
+        if(inc){
+
+        }else{
+            triangulatePose(it, reference, target);
+        }
     }
 }
 
@@ -694,8 +738,33 @@ void Associate::triangulatePose(const pair<int, int> & it, const int reference, 
         depths[1].push_back(depth[1]);
     }
 
-    this->inputs[reference][it.first].update3DPose(depths[0], this->cameras[reference], true);
-    this->inputs[target][it.second].update3DPose(depths[1], this->cameras[target], true);
+    this->inputs[reference][it.first].update3DPose(depths[0], this->cameras[reference], false);
+    this->inputs[target][it.second].update3DPose(depths[1], this->cameras[target], false);
+}
+
+void Associate::triangulatePose(const pair<int, int> & it, const int target){
+    vector<Joint_2d> pose_2d_1 = this->pose_tmp[it.first].get2DPose();
+    vector<Joint_2d> pose_2d_2 = this->inputs[target][it.second].get2DPose();
+
+    vector<double> depths[2];
+    for(int i=0; i<pose_2d_1.size(); ++i){
+        cout << "joint: " << i << "  x1: " << pose_2d_1[i].x << " y1: " << pose_2d_1[i].y
+             << "    x2:" << pose_2d_2[i].x << " y2: " << pose_2d_2[i].y << endl;
+
+        // 迭代初始值
+        vector<double> depth = triangularPoints(pose_2d_1[i], pose_2d_2[i], reference, target);
+        // if(depths.empty())
+        //     continue;
+
+        cout << depth[0] << " " << depth[1] << endl;
+
+        depths[0].push_back(depth[0]);
+        depths[1].push_back(depth[1]);
+    }
+
+
+    this->pose_tmp[it.first].update3DPose(depths[0], this->cameras[reference], false);
+    this->inputs[target][it.second].update3DPose(depths[1], this->cameras[target], false);
 }
 
 void Associate::optimizer3DLoc(Pose &pose, const int reference, const int target){

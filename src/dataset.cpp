@@ -1,5 +1,14 @@
 #include "multi_human_estimation/dataset.h"
 
+
+static vector<vector<int>> bones = {
+    {0, 1}, {0, 2}, 
+    {0, 3}, {3, 4}, {4, 5}, 
+    {0, 9}, {9, 10}, {10, 11}, 
+    {2, 12}, {12, 13}, {13, 14},
+    {2, 6}, {6, 7}, {7, 8}
+};
+
 static cv::Scalar randomColor(cv::RNG &rng){
     int icolor = (unsigned)rng;
     return cv::Scalar(icolor & 255, (icolor >> 8) & 255, (icolor >> 16) & 255);
@@ -90,9 +99,9 @@ void Dataset::listenerCameraPose(vector<int> &f_nums){
 
             break;
         }
-    }
 
-    ROS_INFO("The cameras parameters are updated.");
+        ROS_INFO("The cameras %d parameters are updated.", f_nums[i]);
+    }
 }
 
 void ImageProcess::readCameraParametersFromFile(Json::Value &root, DataSetCamera& DC){
@@ -148,14 +157,21 @@ void ImageProcess::readCameraParametersFromFile(Json::Value &root){
 }
 
 void ImageProcess::readImagePath(Json::Value& root){
-    for(int i=0; i<root["img_to_json"].size(); ++i){
-        string
-        image_path = "/media/xuchengjun/D/dataset/cmu_test/"
-                   + root["img_to_json"][i]["cam_id"].asString() + "/";
+    for(int i=0; i < this->frames.size(); ++i){
+        for(int j=0; j < root["img_to_json"].size(); ++j){
+            if(root["img_to_json"][j]["cam_id"] != this->frames[i])
+                continue;
 
-        image_path += root["img_name"].asString();
-        // cout << image_path << endl;
-        this->img_paths.push_back(image_path);
+            else{
+                std::string
+                image_path = "/media/xuchengjun/D/dataset/cmu_test/"
+                    + root["img_to_json"][j]["cam_id"].asString() + "/";
+
+                image_path += root["img_name"].asString();
+                // cout << image_path << endl;
+                this->img_paths.push_back(image_path);
+            }
+        }
     }
 
 }
@@ -182,13 +198,14 @@ void ImageProcess::readImage(){
 void ImageProcess::showImage(int id, cv::Mat &img){
     // cv::resize(img, img, cv::Size(832, 512));
     // cout << img.size() << endl;
-    cv::imshow("Img"+to_string(id), img);
-    cv::waitKey(0);
+    cv::imshow("Img_"+to_string(id), img);
+    cv::waitKey(20);
 }
 
-void ImageProcess::projection(cv::Mat &img, vector<Pose> &pose){
+void ImageProcess::projection(cv::Mat &img, vector<Pose> &pose, const int index){
     for(unsigned int i=0; i < pose.size(); ++i){
         vector<Joint_2d> joints = pose[i].get2DPose();
+        vector<Root_3d> root_3d = pose[i].getRootPose();
         // cout << joints.size() << endl;
 
         cv::putText(img, to_string(pose[i].getLabel()),
@@ -197,24 +214,44 @@ void ImageProcess::projection(cv::Mat &img, vector<Pose> &pose){
              3,
              this->colorSets[pose[i].getLabel()],
              2);
-        for(unsigned int j=0; j < joints.size(); ++j){
-            // cout << joints[j].x << "  " <<  joints[j].y << endl;
-            cv::circle(img, cv::Point((int)joints[j].x, (int)joints[j].y), 4, this->colorSets[pose[i].getLabel()], 4);
-            // cv::putText(img, to_string(j),
-            //      cv::Point((int)joints[j].x - 30, (int)joints[j].y),
-            //      cv::FONT_HERSHEY_PLAIN,
-            //      3,
-            //      (0,0, 255),
-            //      2);
 
+        for(auto it : bones){
+            if(((int)joints[it[0]].x == 0 || (int)joints[it[0]].y == 0) || 
+               ((int)joints[it[1]].x == 0 || (int)joints[it[1]].y == 0))
+               continue;
+
+            cv::line(img, cv::Point((int)joints[it[0]].x, (int)joints[it[0]].y), 
+                          cv::Point((int)joints[it[1]].x, (int)joints[it[1]].y),
+                          this->colorSets[pose[i].getLabel()],
+                          4);
         }
+        
+        // for(unsigned int j=0; j < joints.size(); ++j){
+        //     // cout << joints[j].x << "  " <<  joints[j].y << endl;
+        //     cv::circle(img, cv::Point((int)joints[j].x, (int)joints[j].y), 4, this->colorSets[pose[i].getLabel()], 4);
+        //     // cv::putText(img, to_string(j),
+        //     //      cv::Point((int)joints[j].x - 30, (int)joints[j].y),
+        //     //      cv::FONT_HERSHEY_PLAIN,
+        //     //      3,
+        //     //      (0,0, 255),
+        //     //      2);
+
+        // }
+
+        // for(int j=0; j<root_3d.size(); ++j){
+        //     cv::Point point_tmp;
+        //     point_tmp.x = (root_3d[j].x * this->cameras[index].fx / root_3d[j].z + this->cameras[index].cx);
+        //     point_tmp.y = (root_3d[j].y * this->cameras[index].fy / root_3d[j].z + this->cameras[index].cy);
+
+        //     cv::circle(img, cv::Point((int)point_tmp.x, (int)point_tmp.y), 5, this->colorSets[pose[i].getLabel() + 1], 4);
+        // }
     }
 }
 
 void Dataset::readJSONFile(int file_index, int ass_num){
 
     char path [100];
-    sprintf(path, "%d/%08d.json", ass_num, file_index); // 2, 00000000
+    sprintf(path, "%d/%08d.json", ass_num, file_index); // 10, 00000000
 
     // cout << this->root_path + "/data/" + path << endl;
     fin.open(this->root_path + "/data/" + path, std::ios::binary);
@@ -235,6 +272,10 @@ void Dataset::readJSONFile(int file_index, int ass_num){
 
 void Dataset::addFrames(vector<int> &frames){
     this->frames = frames;
+
+    // for(auto it : this->frames){
+    //     cout << it << endl;
+    // }
 }
 
 vector<double> Dataset::getRootJoint(const Json::Value &array){
@@ -321,54 +362,54 @@ void Dataset::readBodies(Json::Value& root){
     // cout << root["img_to_json"][0].size() << endl; // 3, cam_id, pred_2d, root_3d
     // cout << root["img_to_json"][0]["root_3d"].size() << endl; // 人数
     // cout << root["img_to_json"][0]["root_3d"][0].isArray() << endl;
-    for(int i=0; i<root["img_to_json"].size(); ++i){    // 相机数
+    for(int i=0; i < this->frames.size(); ++i){    // 相机数
         vector<Pose> pose;
-        for(int j = 0; j < root["img_to_json"][i]["root_3d"].size(); ++j){
-            int cam_id = root["img_to_json"][i]["cam_id"].asInt();
-            vector<double> joint_2d = getPred2DPose(root["img_to_json"][i]["pred_2d"][j]);
-            vector<double> root_3d = getRootJoint(root["img_to_json"][i]["root_3d"][j]);
-
-            // 判断人体姿态是否有效，对无效的姿态进行删除
-            if(joint_2d.empty() || root_3d.empty())
+        for(int j=0; j < root["img_to_json"].size(); ++j){
+            if(root["img_to_json"][j]["cam_id"] != this->frames[i])
                 continue;
+            else{
+                for(int k = 0; k < root["img_to_json"][j]["root_3d"].size(); ++k){
+                    int cam_id = root["img_to_json"][j]["cam_id"].asInt();
+                    vector<double> joint_2d = getPred2DPose(root["img_to_json"][j]["pred_2d"][k]);
+                    vector<double> root_3d = getRootJoint(root["img_to_json"][j]["root_3d"][k]);
 
-            // cout << "joint_2d: " << joint_2d.size() << endl;
-            Pose new_pose;
-           // cout << "原始相机ID： " << root["camera"]["id"].asInt() << endl;
-            new_pose.setCameraID(cam_id);
-            new_pose.set2DPose(joint_2d);
-            new_pose.setRootPose(root_3d);
+                    // 判断人体姿态是否有效，对无效的姿态进行删除
+                    if(joint_2d.empty() || root_3d.empty())
+                        continue;
 
-            pose.push_back(new_pose);
+                    // cout << "joint_2d: " << joint_2d.size() << endl;
+                    Pose new_pose;
+                    // cout << "原始相机ID： " << root["camera"]["id"].asInt() << endl;
+                    new_pose.setCameraID(cam_id);
+                    new_pose.set2DPose(joint_2d);
+                    new_pose.setRootPose(root_3d);
+
+                    pose.push_back(new_pose);
+                }
+            }
+
+            // for(int j = 0; j < root["img_to_json"][this->frames[i]]["root_3d"].size(); ++j){
+            //     int cam_id = root["img_to_json"][this->frames[i]]["cam_id"].asInt();
+            //     vector<double> joint_2d = getPred2DPose(root["img_to_json"][this->frames[i]]["pred_2d"][j]);
+            //     vector<double> root_3d = getRootJoint(root["img_to_json"][this->frames[i]]["root_3d"][j]);
+
+            //     // 判断人体姿态是否有效，对无效的姿态进行删除
+            //     if(joint_2d.empty() || root_3d.empty())
+            //         continue;
+
+            //     // cout << "joint_2d: " << joint_2d.size() << endl;
+            //     Pose new_pose;
+            //    // cout << "原始相机ID： " << root["camera"]["id"].asInt() << endl;
+            //     new_pose.setCameraID(cam_id);
+            //     new_pose.set2DPose(joint_2d);
+            //     new_pose.setRootPose(root_3d);
+
+            //     pose.push_back(new_pose);
+            // }
+
+            this->poses.push_back(pose);
         }
-
-        this->poses.push_back(pose);
-
-        // for(int j=0; j<root["img_to_json"][i]["root_3d"].size(); ++j){
-        //     for(int k=0; k < 4; ++k){
-        //         root_3d.push_back(root["img_to_json"][i]["root_3d"][0][j][k].asDouble());
-        //     }
-        // }
     }
-
-    // for(auto it:root_3d){
-    //     cout << it << endl;
-    // }
-
-    // vector<double> joint_2d;
-    // for(int i=0; i<root["img_to_json"]["joint_2d"].size(); ++i){
-    //     for(int j=0; j<root["img_to_json"]["joint_2d"][i].size(); ++j){
-    //         joint_2d.push_back(root["img_to_json"]["joint_2d"][i][j].asDouble());
-    //     }
-    // }
-
-    // Pose new_pose;
-    // // cout << "原始相机ID： " << root["camera"]["id"].asInt() << endl;
-    // new_pose.setCameraID(root["camera"]["id"].asInt());
-    // new_pose.set2DPose(joint_2d);
-    // new_pose.setRootPose(root_3d);
-    //
-    // poses.push_back(new_pose);  // 保存一个视角下所有的姿态信息
 }
 
 void Dataset::saveResult(const vector<Pose> &poses, std::string output_dir){
@@ -425,7 +466,7 @@ void Dataset::printCamInfo(DataSetCamera &DC){
     cout << "t: " << DC.t << endl;
 }
 
-void Dataset::testData(int num){
+void Dataset::testData(vector<int> &ass_frames){
     ROS_INFO("Test Dataset...........");
 
     if(this->img_paths.empty() || this->poses.empty())
@@ -444,12 +485,12 @@ void Dataset::testData(int num){
             continue;
 
         cout << "Camera: " << i << " has pose: " << this->poses[i].size() << endl;
-        projection(this->imgs[i], this->poses[i]);
+        projection(this->imgs[i], this->poses[i], ass_frames[i]);
     }
 
     // 显示图像
-    for(int i=0; i < imgs.size(); ++i){
-        showImage(i, this->imgs[i]);
+    for(int i=0; i < ass_frames.size(); ++i){
+        showImage(ass_frames[i], this->imgs[i]);
     }
 }
 
@@ -477,7 +518,7 @@ void Dataset::testPair(const vector<pair<int, int> > &ass){
         ++label_ite;
     }
 
-    testData(2);
+    testData(this->frames);
 }
 
 
@@ -526,8 +567,15 @@ int main(int argc, char** argv){
 	ros::Publisher pose_pub = n.advertise<visualization_msgs::Marker>("visualization_marker",1);
 	ros::Rate loop_rate(20);
 
-    vector<int> ass_frames = {0, 1, 2, 3
-                        // 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+    vector<int> ass_frames = {
+                        // 0, 
+                        // 1, 2, 
+                        3,
+                        // 4, 
+                        5,
+                        // 6, 
+                        7 
+                        // , 8, 9, 10, 11, 12, 13, 14, 15,16, 17, 18, 19,
                         // 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30
                         };
     if(ass_frames.size() < 0 || ass_frames.size() > 30){
@@ -545,11 +593,12 @@ int main(int argc, char** argv){
     // GLshow *gl = new GLshow();
 
 
-    dataset->listenerCameraPose(ass_frames);
+    dataset->listenerCameraPose(ass_frames);    // 可自定义相机视角
     // dataset->printCamInfo(dataset->getCams()[0]); // 测试用
 
-    for(int i=0; i < dataset->getCams().size(); ++i)
-        ass->addCameraInfo(dataset->getCams()[i], i);
+    for(auto it : ass_frames){
+        ass->addCameraInfo(dataset->getCams()[it], it);
+    }
 
 
     // 相机测试 (ok)
@@ -559,6 +608,7 @@ int main(int argc, char** argv){
 
 
     int index = 0;
+    int ass_frame_num = 10;
     ROS_INFO("There are all %d frames to be tested.", frame_num);
     // 这是所有文件，帧数自定义
     // int file_num = frame_num;
@@ -568,11 +618,11 @@ int main(int argc, char** argv){
 
         dataset->addFrames(ass_frames);
 
-        dataset->readJSONFile(file_index, ass_frames.size());
+        dataset->readJSONFile(file_index, ass_frame_num);
 
-        // dataset->testData(ass_frames.size()); //测试用（ok）
+        // dataset->testData(ass_frames); //测试用（ok）
 
-        // dataset->readImage();
+        dataset->readImage();
 
         // 匹配
         ass->addPoseInfo(dataset->getPoses());

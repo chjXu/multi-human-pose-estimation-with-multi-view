@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2021-07-14 12:52:53
- * @LastEditTime: 2021-12-06 22:01:36
+ * @LastEditTime: 2022-01-04 16:05:25
  * @LastEditors: Please set LastEditors
  * @Description: 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  * @FilePath: /multi_human_estimation/include/multi_human_estimation/associate.h
@@ -97,6 +97,13 @@ protected:
     void generatePair(vector<Pose>& pose_1, vector<Pose>& pose_2);
 
     /**
+     * @description: 
+     * @param {*}
+     * @return {*}
+     */    
+    void generatePair(Pose& pose_1, vector<Pose>& pose_2);
+
+    /**
      * @brief 数据融合
      * 输入：两帧图像数据
      * 输出：修改一个公共3维姿态
@@ -162,6 +169,14 @@ protected:
     vector<pair<int, int> > extract2DAssociation();
 
     /**
+     * @description: 
+     * @param {vector<Pose>} &
+     * @param {int} target
+     * @return {*}
+     */    
+    vector<pair<int, int> > extract2DAssociation(const vector<Pose> &, const int target);
+
+    /**
      * @description:计算正确配对姿态的3D姿态
      * @param {vector<vector<int> > &}
      * @return {*}
@@ -176,10 +191,26 @@ protected:
      * @param {int} method. 0 means triangulation by ourself. 1 means OpenCV, 2 means Ceres
      * @return {*}
      */
-    void triangularization(const vector<pair<int, int> > &, const int reference, const int target, const Mode& method);
+    void triangularization(const vector<pair<int, int> > &, const int reference, const int target, const Mode& method, bool inc = false);
 
-
+    /**
+     * @description: 
+     * @param {pair<int, int>} &
+     * @param {int} reference
+     * @param {int} target
+     * @return {*}
+     */    
     void triangulatePose(const pair<int, int> &, const int reference, const int target);
+    
+    /**
+     * @description: 
+     * @param {pair<int, int>} &
+     * @param {int} reference
+     * @param {int} target
+     * @return {*}
+     */    
+    void triangulatePose(const pair<int, int> &, const int target);
+    
     /**
      * @description:
      * @param {*}
@@ -187,7 +218,13 @@ protected:
      */
     vector<double> triangularPoints(const Joint_2d&, const Joint_2d&, const int reference, const int target);
 
+    /**
+     * @description: 
+     * @param {int} ref
+     * @return {*}
+     */    
     Eigen::Matrix<double, 3, 1> normalization(const Joint_2d&, const int ref);
+    
     /**
      * @description:
      * @param {int} reference
@@ -198,7 +235,13 @@ protected:
 
     // void triangularCamera(const Pose &, const int target, const Mode& mode);
 
-
+    /**
+     * @description: 
+     * @param {Pose} &
+     * @param {int} reference
+     * @param {int} target
+     * @return {*}
+     */    
     void optimizer3DLoc(Pose &, const int reference, const int target);
 
     /**
@@ -260,7 +303,13 @@ protected:
      */
     vector<Pose> poseFusion(int reference, int target, const Mode& mode);
 
-
+    /**
+     * @description: 
+     * @param {vector<Pose>} &
+     * @param {int} target
+     * @param {Mode&} mode
+     * @return {*}
+     */    
     vector<Pose> IncrementalPoseFusion(vector<Pose> &, int target, const Mode& mode);
 
     /**
@@ -302,11 +351,22 @@ private:
     template <typename T>
     vector<T> crossMulti(const vector<T>& , const vector<T>& );
 
+    /**
+     * @description: 
+     * @param {*}
+     * @return {*}
+     */    
     template <typename T>
     T det(const vector<T>& , const vector<T>& );
 
+    /**
+     * @description: 
+     * @param {*}
+     * @return {*}
+     */    
     template <typename T>
     bool isParallel(const vector<T>& v1, const vector<T>& v2);
+    
     /**
      * @description:打印输出一帧图像中的所有姿态信息
      * @param {vector<Pose>} &
@@ -323,13 +383,15 @@ private:
 
     vector<vector<Pose>> inputs;
 
-    vector<DataSetCamera> cameras;  //所有相机的参数
+    vector<DataSetCamera> cameras;  //自定义相机的数量
 
     list<PosePair> pose_pairs;
 
     vector<Joint_3d> pose_3d;
 
     vector<Pose> poses_3d;
+
+    vector<Pose> pose_tmp;
 
     vector<pair<int, int> > ass_pairs;
 

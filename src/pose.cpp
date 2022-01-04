@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2021-08-13 19:24:06
- * @LastEditTime: 2021-12-06 21:18:32
+ * @LastEditTime: 2022-01-04 16:10:45
  * @LastEditors: Please set LastEditors
  * @Description: 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  * @FilePath: /multi_human_estimation/src/pose.cpp
@@ -115,6 +115,10 @@ void Pose::update3DPose(vector<double> &depth, DataSetCamera &DC, bool worldOrCa
     if(depth.empty()) return;
 
     // pose_3d.resize(pose_2d.size());
+    vector<Joint_3d> pose_tmp;
+    if(updated){
+        pose_tmp = pose_3d;
+    }
 
     for(int i=0; i<num_kpt; ++i){
         if(depth[i] < 1e-3) continue;
@@ -122,6 +126,10 @@ void Pose::update3DPose(vector<double> &depth, DataSetCamera &DC, bool worldOrCa
         pose_3d[i].x = ( pose_2d[i].x - DC.cx ) * pose_3d[i].z / DC.fx;
         pose_3d[i].y = ( pose_2d[i].y - DC.cy ) * pose_3d[i].z / DC.fy;
         pose_3d[i].available = true;
+    }
+
+    if(updated){
+        average(pose_tmp, pose_3d);
     }
 
     updated = true;
@@ -257,4 +265,20 @@ void Pose::set3DPose(const vector<cv::Point3d>& pose_3d){
 
 void Pose::setColor(const cv::Scalar &color){
     this->color = color;
+}
+
+bool Pose::isZeroJoint(Joint_3d &j) const{
+    return fabs(j.x - 0.0) < 1e-4 &&  fabs(j.y - 0.0) < 1e-4 && fabs(j.z - 0.0) < 1e-4;
+}
+
+void Pose::average(vector<Joint_3d> &tmp, vector<Joint_3d> &pose_3d){
+    for(int i=0; i<num_kpt; ++i){
+        if(!isZeroJoint(tmp[i]) && !isZeroJoint(pose_3d[i])){
+            pose_3d[i].x = 0.5 * (tmp[i].x + pose_3d[i].x);
+            pose_3d[i].y = 0.5 * (tmp[i].y + pose_3d[i].y);
+            pose_3d[i].z = 0.5 * (tmp[i].z + pose_3d[i].z);
+        }else{
+            continue;
+        }
+    }
 }

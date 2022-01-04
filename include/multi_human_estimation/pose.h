@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2021-07-14 12:43:08
- * @LastEditTime: 2021-12-06 19:53:23
+ * @LastEditTime: 2022-01-04 15:48:40
  * @LastEditors: Please set LastEditors
  * @Description: 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  * @FilePath: /multi_human_estimation/include/multi_human_estimation/pose.h
@@ -228,6 +228,8 @@ public:
         return this->color;
     }
 
+    bool isZeroJoint(Joint_3d &j) const;
+
 private:
     int camera_id;
     int root_id;
@@ -240,4 +242,6 @@ private:
     vector<Root_3d> root_3d;
     vector<Joint_2d> pose_2d;
     vector<Joint_3d> pose_3d;
+
+    void average(vector<Joint_3d> &, vector<Joint_3d> &);
 };

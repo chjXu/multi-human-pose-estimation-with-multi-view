@@ -84,15 +84,59 @@ public:
      * @return
     */
     virtual void readCameraParametersFromFile(Json::Value &root, DataSetCamera& DC);
+    
+    /**
+     * @description: 
+     * @param {Value&} root
+     * @return {*}
+     */    
     virtual void readBodies(Json::Value& root);
+    
+    /**
+     * @description: 
+     * @param {string} img_path
+     * @return {*}
+     */    
     virtual void readImage(std::string img_path);
+    
+    /**
+     * @description: 
+     * @param {*}
+     * @return {*}
+     */    
     virtual void readImage();
+    
+    /**
+     * @description: 
+     * @param {int} id
+     * @param {Mat} &img
+     * @return {*}
+     */    
     virtual void showImage(int id, cv::Mat &img);
+    
+    /**
+     * @description: 
+     * @param {*}
+     * @return {*}
+     */    
     virtual vector<cv::Mat> getImage() const{
         return imgs;
     }
-    virtual void projection(cv::Mat &img, vector<Pose> &pose);
+    
+    /**
+     * @description: 
+     * @param {Mat} &img
+     * @param {vector<Pose>} &pose
+     * @param {int} index
+     * @return {*}
+     */    
+    virtual void projection(cv::Mat &img, vector<Pose> &pose, const int index);
 
+    /**
+     * @description: 
+     * @param {*}
+     * @return {*}
+     */    
     vector<DataSetCamera> getCams() const{
         return this->cameras;
     }
@@ -103,6 +147,8 @@ protected:
     // cv::Mat image;
     vector<cv::Mat> imgs;
     vector<cv::Scalar> colorSets;
+
+    vector<int> frames;
 };
 
 
@@ -111,8 +157,7 @@ class Dataset : public ImageProcess //, public GLshow
 private:
     std::ifstream fin;
     vector<vector<Pose>> poses; // 存储当前JSON文件中的所有姿态信息
-    vector<int> frames;
-
+    
     int frame_num;
 
     Json::Reader reader;
@@ -211,7 +256,7 @@ public:
      */
     vector<Pose> loadData();
 
-    void testData(int num);
+    void testData(vector<int>& ass_frames);
 
     void testPair(const vector<pair<int, int> > &);
 
