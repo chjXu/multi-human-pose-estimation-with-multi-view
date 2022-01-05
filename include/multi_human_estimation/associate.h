@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2021-07-14 12:52:53
- * @LastEditTime: 2022-01-04 16:05:25
+ * @LastEditTime: 2022-01-05 21:44:21
  * @LastEditors: Please set LastEditors
  * @Description: 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  * @FilePath: /multi_human_estimation/include/multi_human_estimation/associate.h
@@ -37,6 +37,15 @@ enum Mode{
     triangulation,
     OpenCV,
     Ceres
+};
+
+struct AssPair{
+    vector<int> cam_ids;
+    vector<int> pose_indexs;
+    int pose_label;
+    
+    AssPair() : pose_label(-1) {}
+    AssPair(int _pose_label) : pose_label(_pose_label) {}
 };
 
 class Associate
@@ -88,6 +97,10 @@ public:
         return ass_pairs;
     }
 
+    vector<AssPair> getPairsRes() const{
+        return this->ass_pairs_res;
+    }
+
 protected:
     /**
      * @brief 生成所有视角下不同姿态可配对的所有可能性
@@ -96,12 +109,6 @@ protected:
      */
     void generatePair(vector<Pose>& pose_1, vector<Pose>& pose_2);
 
-    /**
-     * @description: 
-     * @param {*}
-     * @return {*}
-     */    
-    void generatePair(Pose& pose_1, vector<Pose>& pose_2);
 
     /**
      * @brief 数据融合
@@ -109,6 +116,13 @@ protected:
      * 输出：修改一个公共3维姿态
      */
     void fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2, bool inc = false);
+
+    /**
+     * @description: 
+     * @param {bool} inc
+     * @return {*}
+     */    
+    void fusionOfEachPose(list<PosePair> &pairs, Pose& pose, vector<Pose>& pose_set, const int target, int label);
 
     /**
      * @brief 数据融合
@@ -122,7 +136,7 @@ protected:
      * 输入：配对关系
      * 输出：
      */
-    bool calculateCorrespondence(PosePair &, const double & threshold = 0.4);
+    bool calculateCorrespondence(PosePair &, const double & threshold = 0.4, bool inc = false);
 
     /**
      * @description: translate the camera point to world
@@ -170,11 +184,18 @@ protected:
 
     /**
      * @description: 
+     * @param {*}
+     * @return {*}
+     */    
+    vector<vector<int>> extractAssociationResults();
+
+    /**
+     * @description: 
      * @param {vector<Pose>} &
      * @param {int} target
      * @return {*}
      */    
-    vector<pair<int, int> > extract2DAssociation(const vector<Pose> &, const int target);
+    vector<AssPair> extract2DAssociation(const vector<Pose> &, const int target);
 
     /**
      * @description:计算正确配对姿态的3D姿态
@@ -394,6 +415,8 @@ private:
     vector<Pose> pose_tmp;
 
     vector<pair<int, int> > ass_pairs;
+
+    vector<AssPair> ass_pairs_res;
 
     static int index;
 

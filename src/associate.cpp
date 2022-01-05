@@ -66,34 +66,74 @@ void Associate::run(const Mode&& mode){
 
     this->pose_tmp = poseFusion(this->reference, this->target, mode);
 
+    // vector<vector<int> > pose_ass = extractAssociationResults();
+
+    // for(int i=0; i < pose_ass.size(); ++i){
+    //     for(int j=0; j<pose_ass[i].size(); ++j){
+    //         cout << "Pose_ass: " << pose_ass[i][j] << endl;
+    //     }
+    // }
+
     // cout << "Pose_tmp size is: " << pose_tmp.size() << endl;
+    // int count = 0;
+    // for(auto it : pose_tmp){
+    //     cout << "camera: " << it.getCameraID() << "  index: " << count << " label: " << it.getLabel() << endl;
+    //     ++count;
+    // }
+
     // printInfo(pose_tmp);
 
     // 优化计算其关节位置信息
     // optimizer3DLoc(this->inputs[reference][it.first]);
     // optimizer3DLoc(this->inputs[target][it.second]);
 
-    // if(this->inputs.size() > 2){
-    //     cout << "Inputs size is: " << inputs.size() << endl;
-    //     for(int i=2; i < this->inputs.size(); ++i){
-    //         pose_tmp = IncrementalPoseFusion(pose_tmp, i, mode);
-    //     }
-    // }
+    if(this->inputs.size() > 2){
+        cout << "Inputs size is: " << inputs.size() << endl;
+        for(int i=2; i < this->inputs.size(); ++i){
+            this->target = i;
+            this->pose_tmp = IncrementalPoseFusion(this->pose_tmp, i, mode);
+        }
+    }
 
 }
 
 vector<Pose> Associate::IncrementalPoseFusion(vector<Pose> &pose_tmp, int target, const Mode& mode){
     if(pose_tmp.empty()) return {};
 
+    static int group_tmp = 1;
+
+    ROS_INFO("Tmp pose has: %d, target pose has: %d", (int)pose_tmp.size(), (int)this->inputs[target].size());
+
+    sort(pose_tmp.begin(), pose_tmp.end(), [](Pose &a, Pose &b){return a.getLabel() < b.getLabel();});
+
+    int index = 0;
+    static int _label = pose_tmp[pose_tmp.size() - 1].getLabel();
+
     for(auto &it : pose_tmp){
         triangularCamera(it.getCameraID(), target, mode);
-        generatePair(it, this->inputs[target]);
-        fusionOfEachFrame(pose_tmp, this->inputs[target], true);
 
-        this->ass_pairs = extract2DAssociation(pose_tmp, target);
+        // generatePair
+        list<PosePair> pose_pairs_tmp;
 
-        triangularization(ass_pairs, reference, target, mode, true);
+        for(int i=0; i < this->inputs[target].size(); ++i){
+            PosePair pair;
+            pair.setGroup(group_tmp);
+            pair.setLabel(it.getLabel(), this->inputs[target][i].getLabel());
+            pair.setIndex(index, i);
+            pair.setCam(it.getCameraID(), this->inputs[target][i].getCameraID());
+
+            pose_pairs_tmp.push_back(pair);
+        }
+
+        fusionOfEachPose(pose_pairs_tmp, it, this->inputs[target], target, _label);
+        ++index;
     }
+    
+    ROS_INFO("Generate pairs: %d", index);
+    this->ass_pairs_res = extract2DAssociation(pose_tmp, target);
+
+    // triangularization(ass_pairs, reference, target, mode, true);
+    
 
     return {};
 }
@@ -209,7 +249,7 @@ void Associate::generatePair(vector<Pose>& pose_1, vector<Pose>& pose_2){
             PosePair pair;
             pair.setGroup(group);
             pair.setLabel(pose_1[i].getLabel(), pose_2[j].getLabel());
-            pair.setIndex(i, j);
+            pair.setIndex(pose_1[i].getIndex(), pose_2[i].getIndex());
             pair.setCam(pose_1[i].getCameraID(), pose_2[j].getCameraID());
 
             this->pose_pairs.push_back(pair);
@@ -221,26 +261,6 @@ void Associate::generatePair(vector<Pose>& pose_1, vector<Pose>& pose_2){
     ++group;
 }
 
-void Associate::generatePair(Pose& pose_1, vector<Pose>& pose_2){
-    if(pose_2.empty()){
-        ROS_ERROR("There are no humans in target camera.");
-        return;
-    }
-
-    this->pose_pairs.clear();
-
-    
-    for(int i=0; i < pose_2.size(); ++i){
-        PosePair pair;
-        pair.setGroup(i);
-        pair.setLabel(pose_1.getLabel(), pose_2[i].getLabel());
-        pair.setIndex(0, i);
-        pair.setCam(pose_1.getCameraID(), pose_2[i].getCameraID());
-
-        this->pose_pairs.push_back(pair);
-    }
-
-}
 
 void Associate::triangularCamera(int reference, int target, const Mode& mode){
     bool listening = false;
@@ -316,6 +336,36 @@ void Associate::triangularCamera(int reference, int target, const Mode& mode){
 }
 
 
+void Associate::fusionOfEachPose(list<PosePair> &pairs, Pose& pose, vector<Pose>& pose_set, const int target, int label){
+    if(pairs.empty())
+        return;
+
+    for(auto it = pairs.begin(); it != pairs.end(); ++it){
+        calculateCorrespondence(*it, 2.0, true);
+    }
+
+
+    int count = 1;
+    for(auto it = pairs.begin(); it != pairs.end(); ++it){
+        ROS_INFO("Pair: %d, and %d:%d, label_1: %d, label_2: %d, score is: %f.",
+                  count, (*it).getIndex_1(), (*it).getIndex_2(), (*it).getLabel_1(), (*it).getLabel_2(),
+                  (*it).getDelta());
+
+        ++count;
+    }
+    
+
+    auto rank_min = min_element(pairs.begin(), pairs.end(), PosePair::comp);
+
+    if(pose.getLabel() > 0)
+        this->inputs[target][(*rank_min).getIndex_2()].setLabel((*rank_min).getLabel_1());
+    else{
+        pose.setLabel(++label);
+        this->inputs[target][(*rank_min).getIndex_2()].setLabel(++label);
+    }
+}
+
+
 void Associate::fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2, bool inc){
     if(this->pose_pairs.empty())
         return;
@@ -336,7 +386,7 @@ void Associate::fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2, bo
 
     auto rank_min = min_element(pose_pairs.begin(), pose_pairs.end(), PosePair::comp);
     int label_ite = 1;
-    double threshold = 1.5;
+    double threshold = 3.0;
 
     // while(!pose_pairs.empty()){
     while(!pose_pairs.empty() && rank_min->getDelta() <= threshold){
@@ -377,7 +427,7 @@ void Associate::fusionOfEachFrame(vector<Pose>& pose_1, vector<Pose>& pose_2, bo
 }
 
 
-bool Associate::calculateCorrespondence(PosePair &pair, const double & threshold){
+bool Associate::calculateCorrespondence(PosePair &pair, const double & threshold, bool inc){
     int cam_1, cam_2;
     cam_1 = pair.getCam_1();
     cam_2 = pair.getCam_2();
@@ -385,8 +435,14 @@ bool Associate::calculateCorrespondence(PosePair &pair, const double & threshold
     // assert(this->reference = cam_1);
     // assert(this->target = cam_2);
 
-    Pose pose_1 = this->inputs[this->reference][pair.getIndex_1()];
-    Pose pose_2 = this->inputs[this->target][pair.getIndex_2()];
+    Pose pose_1, pose_2;
+    if(inc){
+        pose_1 = this->pose_tmp[pair.getIndex_1()];
+        pose_2 = this->inputs[this->target][pair.getIndex_2()];
+    }else{
+        pose_1 = this->inputs[this->reference][pair.getIndex_1()];
+        pose_2 = this->inputs[this->target][pair.getIndex_2()];
+    }
 
 	double sum_EX = 100;
 
@@ -438,25 +494,71 @@ vector<pair<int, int> > Associate::extract2DAssociation(){
     return pose_ass;
 }
 
-vector<pair<int, int> > Associate::extract2DAssociation(const vector<Pose> &pose_tmp, const int target){
-    vector<pair<int, int> > pose_ass;
+vector<vector<int>> Associate::extractAssociationResults(){
+    // 从pose_tmp中提取姿态信息
+
     map<int, int> PoseList;
-
-    for(int i = 0; i < pose_tmp.size(); ++i) {
-        Pose pose_1 = pose_tmp[i];
-        if(pose_1.getLabel() < 0) continue;
-
-        for(int j = 0; j < this->inputs[target].size(); ++j){
-            Pose pose_2 = this->inputs[target][j];
-            if(pose_2.getLabel() < 0) continue;
-
-            if(pose_1.getLabel() == pose_2.getLabel()){
-                pose_ass.emplace_back(std::pair<int, int>(i, j));
+    vector<vector<int> > pose_ass;
+    int id_ite = 0;
+    for(int i = 0; i < this->pose_tmp.size(); ++i) {
+        if(this->pose_tmp[i].getLabel() > 0) {
+            int label = this->pose_tmp[i].getLabel();
+            if (PoseList.find(label) == PoseList.end()) {
+                PoseList[label] = id_ite;
+                pose_ass.resize(id_ite+1);
+                pose_ass[id_ite].push_back(i);
+                id_ite++;
+            }
+            else {
+                pose_ass[PoseList[label]].push_back(i);
             }
         }
     }
 
-    ROS_INFO("Pose generated: %d", (int)pose_ass.size());
+    //ROS_INFO("Pose generated: %d", (int)pose_ass.size());
+    return pose_ass;
+
+}
+
+vector<AssPair> Associate::extract2DAssociation(const vector<Pose> &pose_tmp, const int target){
+    if(pose_tmp.empty() || this->inputs[target].empty())
+        return {};
+
+    vector<Pose> tmp;
+    for(auto &it : pose_tmp){
+        tmp.push_back(it);
+    }
+
+    for(auto & it : this->inputs[target]){
+        tmp.push_back(it);
+    }
+
+
+    vector<AssPair> pose_ass;
+    map<int, int> PoseList; // tmp index, target index
+
+    int id_ite = 0;
+    for(int i = 0; i < tmp.size(); ++i) {
+        if(tmp[i].getLabel() >= 0) {
+            int cam = tmp[i].getCameraID();
+            int label = tmp[i].getLabel();
+            int index = tmp[i].getIndex();
+            if (PoseList.find(label) == PoseList.end()) {
+                PoseList[label] = id_ite;
+                pose_ass.resize(id_ite+1);
+                pose_ass[id_ite].pose_label = label;
+                pose_ass[id_ite].cam_ids.push_back(cam);
+                pose_ass[id_ite].pose_indexs.push_back(index);
+                id_ite++;
+            }
+            else {
+                pose_ass[PoseList[label]].cam_ids.push_back(cam);
+                pose_ass[PoseList[label]].pose_indexs.push_back(index);
+            }
+        }
+    }
+
+    // ROS_INFO("Pose generated: %d", (int)pose_ass.size());
     return pose_ass;
 }
 
@@ -724,15 +826,15 @@ void Associate::triangulatePose(const pair<int, int> & it, const int reference, 
 
     vector<double> depths[2];
     for(int i=0; i<pose_2d_1.size(); ++i){
-        cout << "joint: " << i << "  x1: " << pose_2d_1[i].x << " y1: " << pose_2d_1[i].y
-             << "    x2:" << pose_2d_2[i].x << " y2: " << pose_2d_2[i].y << endl;
+        // cout << "joint: " << i << "  x1: " << pose_2d_1[i].x << " y1: " << pose_2d_1[i].y
+        //      << "    x2:" << pose_2d_2[i].x << " y2: " << pose_2d_2[i].y << endl;
 
         // 迭代初始值
         vector<double> depth = triangularPoints(pose_2d_1[i], pose_2d_2[i], reference, target);
         // if(depths.empty())
         //     continue;
 
-        cout << depth[0] << " " << depth[1] << endl;
+        // cout << depth[0] << " " << depth[1] << endl;
 
         depths[0].push_back(depth[0]);
         depths[1].push_back(depth[1]);

@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2021-08-13 19:24:06
- * @LastEditTime: 2022-01-04 16:10:45
+ * @LastEditTime: 2022-01-05 20:47:45
  * @LastEditors: Please set LastEditors
  * @Description: 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  * @FilePath: /multi_human_estimation/src/pose.cpp
@@ -281,4 +281,8 @@ void Pose::average(vector<Joint_3d> &tmp, vector<Joint_3d> &pose_3d){
             continue;
         }
     }
+}
+
+void Pose::setIndex(const int index){
+    this->index = index;
 }

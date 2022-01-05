@@ -199,7 +199,15 @@ void ImageProcess::showImage(int id, cv::Mat &img){
     // cv::resize(img, img, cv::Size(832, 512));
     // cout << img.size() << endl;
     cv::imshow("Img_"+to_string(id), img);
-    cv::waitKey(20);
+    // cv::waitKey(20);
+
+    while(ros::ok()) {
+        char c = cv::waitKey(30);
+        if(c == ' '){
+            break;
+        }
+    
+    }
 }
 
 void ImageProcess::projection(cv::Mat &img, vector<Pose> &pose, const int index){
@@ -381,6 +389,7 @@ void Dataset::readBodies(Json::Value& root){
                     Pose new_pose;
                     // cout << "原始相机ID： " << root["camera"]["id"].asInt() << endl;
                     new_pose.setCameraID(cam_id);
+                    new_pose.setIndex(k);
                     new_pose.set2DPose(joint_2d);
                     new_pose.setRootPose(root_3d);
 
@@ -518,7 +527,82 @@ void Dataset::testPair(const vector<pair<int, int> > &ass){
         ++label_ite;
     }
 
-    testData(this->frames);
+}
+
+void Dataset::testPair(const vector<AssPair> &ass, vector<int> & ass_frames){
+    ROS_INFO("Test Pair...........");
+
+    int label_ite = 0;
+    vector<vector<Pose>> poses;
+    for(int i=0; i< ass.size(); ++i){
+        if(ass[i].cam_ids.size() < 2)
+            continue;
+
+        vector<int> cam_ids = ass[i].cam_ids;
+        vector<int> pose_indexs = ass[i].pose_indexs;
+        int label = ass[i].pose_label;
+        
+        vector<Pose> pose_tmp;
+        pose_tmp.resize(cam_ids.size());
+
+        for(int j=0; j<ass[i].cam_ids.size(); ++j){
+            pose_tmp[j] = this->poses[j][pose_indexs[j]];
+            pose_tmp[j].setLabel(label_ite);
+            pose_tmp[j].setColor(this->colorSets[label_ite]);
+        }
+
+        poses.push_back(pose_tmp);
+        ++label_ite;
+    }
+
+    if(this->img_paths.empty() || this->poses.empty())
+        ROS_ERROR("Test ERROR!");
+
+    // 读取图片
+    for(auto it : this->img_paths){
+        readImage(it); // 得到所有图像
+    }
+
+    for(int i=0; i < poses.size(); ++i){
+        for(int j=0; j<poses[i].size(); ++j){
+            if(this->imgs[i].empty())
+                continue;
+
+            cout << "Camera: " << i << " has pose: " << this->poses[i].size() << endl;
+            projection(this->imgs[j], poses[i]);
+        }
+    }
+
+    // 显示图像(有bug)
+    for(int i=0; i < ass_frames.size(); ++i){
+        showImage(ass_frames[i], this->imgs[i]);
+    }
+}
+
+void ImageProcess::projection(cv::Mat &img, vector<Pose> &pose){
+    for(unsigned int i=0; i < pose.size(); ++i){
+        vector<Joint_2d> joints = pose[i].get2DPose();
+        vector<Root_3d> root_3d = pose[i].getRootPose();
+        // cout << joints.size() << endl;
+
+        cv::putText(img, to_string(pose[i].getLabel()),
+             cv::Point((int)joints[1].x - 50, (int)joints[1].y),
+             cv::FONT_HERSHEY_PLAIN,
+             3,
+             this->colorSets[pose[i].getLabel()],
+             2);
+
+        for(auto it : bones){
+            if(((int)joints[it[0]].x == 0 || (int)joints[it[0]].y == 0) || 
+               ((int)joints[it[1]].x == 0 || (int)joints[it[1]].y == 0))
+               continue;
+
+            cv::line(img, cv::Point((int)joints[it[0]].x, (int)joints[it[0]].y), 
+                          cv::Point((int)joints[it[1]].x, (int)joints[it[1]].y),
+                          this->colorSets[pose[i].getLabel()],
+                          4);
+        }
+    }
 }
 
 
@@ -628,7 +712,7 @@ int main(int argc, char** argv){
         ass->addPoseInfo(dataset->getPoses());
         ass->run(Mode::triangulation);
 
-        dataset->testPair(ass->getPair());
+        dataset->testPair(ass->getPairsRes(), ass_frames);
         // dataset->saveResult(ass->getResult(), output_dir); //保存结果
         //
         // vis->addImage(dataset->getImage());

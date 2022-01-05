@@ -134,6 +134,15 @@ public:
 
     /**
      * @description: 
+     * @param {Mat} &img
+     * @param {vector<Pose>} &pose
+     * @param {int} index
+     * @return {*}
+     */    
+    virtual void projection(cv::Mat &img, vector<Pose> &pose);
+
+    /**
+     * @description: 
      * @param {*}
      * @return {*}
      */    
@@ -259,6 +268,8 @@ public:
     void testData(vector<int>& ass_frames);
 
     void testPair(const vector<pair<int, int> > &);
+
+    void testPair(const vector<AssPair> &, vector<int> &);
 
     void saveResult(const vector<Pose> &, std::string output_dir);
 };

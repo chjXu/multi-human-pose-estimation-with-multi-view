@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2021-07-14 12:43:08
- * @LastEditTime: 2022-01-04 15:48:40
+ * @LastEditTime: 2022-01-05 20:46:36
  * @LastEditors: Please set LastEditors
  * @Description: 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  * @FilePath: /multi_human_estimation/include/multi_human_estimation/pose.h
@@ -76,6 +76,12 @@ class Pose
 public:
     Pose();
     ~Pose();
+
+    void setIndex(const int index);
+
+    int getIndex() const{
+        return this->index;
+    }
 
     // set2Dpose from netowrk
     void set2DPose(vector<double>& joints);
@@ -236,6 +242,7 @@ private:
     int label;
     bool updated;
     int num_kpt;
+    int index;
 
     cv::Scalar color;
 
