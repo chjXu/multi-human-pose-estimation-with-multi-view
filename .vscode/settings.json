@@ -12,6 +12,9 @@
         "vector": "cpp",
         "iostream": "cpp",
         "ostream": "cpp",
-        "fstream": "cpp"
+        "fstream": "cpp",
+        "deque": "cpp",
+        "list": "cpp",
+        "unordered_map": "cpp"
     }
 }

@@ -200,14 +200,6 @@ void ImageProcess::showImage(int id, cv::Mat &img){
     // cout << img.size() << endl;
     cv::imshow("Img_"+to_string(id), img);
     // cv::waitKey(20);
-
-    while(ros::ok()) {
-        char c = cv::waitKey(30);
-        if(c == ' '){
-            break;
-        }
-    
-    }
 }
 
 void ImageProcess::projection(cv::Mat &img, vector<Pose> &pose, const int index){
@@ -542,6 +534,15 @@ void Dataset::testPair(const vector<AssPair> &ass, vector<int> & ass_frames){
         vector<int> pose_indexs = ass[i].pose_indexs;
         int label = ass[i].pose_label;
         
+        cout << "label: " << label << endl;
+        for(auto it : cam_ids){
+            cout << "cam_id: " << it << endl;
+        }
+
+        for(auto it : pose_indexs){
+            cout << "pose_index: " << it << endl;
+        }
+
         vector<Pose> pose_tmp;
         pose_tmp.resize(cam_ids.size());
 
@@ -563,29 +564,32 @@ void Dataset::testPair(const vector<AssPair> &ass, vector<int> & ass_frames){
         readImage(it); // 得到所有图像
     }
 
+    cout << "Size: " << poses.size() << endl;
     for(int i=0; i < poses.size(); ++i){
-        for(int j=0; j<poses[i].size(); ++j){
-            if(this->imgs[i].empty())
-                continue;
-
-            cout << "Camera: " << i << " has pose: " << this->poses[i].size() << endl;
-            projection(this->imgs[j], poses[i]);
-        }
+        projection(this->imgs, poses[i]);
     }
 
     // 显示图像(有bug)
     for(int i=0; i < ass_frames.size(); ++i){
         showImage(ass_frames[i], this->imgs[i]);
     }
+
+    while(ros::ok()) {
+        char c = cv::waitKey(30);
+        if(c == ' '){
+            break;
+        }
+    
+    }
 }
 
-void ImageProcess::projection(cv::Mat &img, vector<Pose> &pose){
+void ImageProcess::projection(vector<cv::Mat> &imgs, vector<Pose> &pose){
     for(unsigned int i=0; i < pose.size(); ++i){
         vector<Joint_2d> joints = pose[i].get2DPose();
         vector<Root_3d> root_3d = pose[i].getRootPose();
         // cout << joints.size() << endl;
 
-        cv::putText(img, to_string(pose[i].getLabel()),
+        cv::putText(imgs[i], to_string(pose[i].getLabel()),
              cv::Point((int)joints[1].x - 50, (int)joints[1].y),
              cv::FONT_HERSHEY_PLAIN,
              3,
@@ -597,7 +601,7 @@ void ImageProcess::projection(cv::Mat &img, vector<Pose> &pose){
                ((int)joints[it[1]].x == 0 || (int)joints[it[1]].y == 0))
                continue;
 
-            cv::line(img, cv::Point((int)joints[it[0]].x, (int)joints[it[0]].y), 
+            cv::line(imgs[i], cv::Point((int)joints[it[0]].x, (int)joints[it[0]].y), 
                           cv::Point((int)joints[it[1]].x, (int)joints[it[1]].y),
                           this->colorSets[pose[i].getLabel()],
                           4);
@@ -652,7 +656,7 @@ int main(int argc, char** argv){
 	ros::Rate loop_rate(20);
 
     vector<int> ass_frames = {
-                        // 0, 
+                        0, 
                         // 1, 2, 
                         3,
                         // 4, 
@@ -697,6 +701,8 @@ int main(int argc, char** argv){
     // 这是所有文件，帧数自定义
     // int file_num = frame_num;
     for(int file_index=0; file_index < frame_num; ++file_index){
+        ROS_INFO("No.%d will be process.", file_index);
+
         // while(ros::ok()){
         dataset->clear();
 
@@ -713,6 +719,11 @@ int main(int argc, char** argv){
         ass->run(Mode::triangulation);
 
         dataset->testPair(ass->getPairsRes(), ass_frames);
+
+        ROS_INFO("End.");
+        ROS_INFO("-----------------------------------------");
+        cout << endl;
+        cout << endl;
         // dataset->saveResult(ass->getResult(), output_dir); //保存结果
         //
         // vis->addImage(dataset->getImage());

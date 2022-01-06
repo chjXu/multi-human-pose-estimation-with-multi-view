@@ -139,7 +139,7 @@ public:
      * @param {int} index
      * @return {*}
      */    
-    virtual void projection(cv::Mat &img, vector<Pose> &pose);
+    virtual void projection(vector<cv::Mat> &imgs, vector<Pose> &pose);
 
     /**
      * @description: 

@@ -95,6 +95,7 @@ void Associate::run(const Mode&& mode){
         }
     }
 
+    this->ass_pairs_res = extract2DAssociation(this->pose_tmp);
 }
 
 vector<Pose> Associate::IncrementalPoseFusion(vector<Pose> &pose_tmp, int target, const Mode& mode){
@@ -130,12 +131,24 @@ vector<Pose> Associate::IncrementalPoseFusion(vector<Pose> &pose_tmp, int target
     }
     
     ROS_INFO("Generate pairs: %d", index);
-    this->ass_pairs_res = extract2DAssociation(pose_tmp, target);
+    this->ass_pairs = extractAssociationInc(pose_tmp, target);
+    // this->ass_pairs_res = extract2DAssociation(pose_tmp, target);
 
-    // triangularization(ass_pairs, reference, target, mode, true);
+    triangularization(ass_pairs, reference, target, mode, true);
     
+    for(auto it : this->ass_pairs){
+        pose_tmp.emplace_back(this->inputs[target][it.second]);
+    }
 
-    return {};
+    for(auto &it : this->inputs[target]){
+        if(it.getLabel() < 0){
+            pose_tmp.emplace_back(it);
+        }else{
+            continue;
+        }
+    }
+
+    return pose_tmp;
 }
 
 
@@ -222,8 +235,8 @@ void Associate::addCameraInfo(const DataSetCamera &DC, int camera_id){
 void Associate::generatePair(vector<Pose>& pose_1, vector<Pose>& pose_2){
     static int group = 1;
 
-    cout << "--------------------------------------" << endl;
-    ROS_INFO("The %d group are starting pairing.", group);
+    // cout << "--------------------------------------" << endl;
+    // ROS_INFO("The %d group are starting pairing.", group);
     ROS_INFO("Reference camera has %ld person, target camera has %ld person.", pose_1.size(), pose_2.size());
 
     if(pose_1.empty() && pose_2.empty()){
@@ -249,7 +262,7 @@ void Associate::generatePair(vector<Pose>& pose_1, vector<Pose>& pose_2){
             PosePair pair;
             pair.setGroup(group);
             pair.setLabel(pose_1[i].getLabel(), pose_2[j].getLabel());
-            pair.setIndex(pose_1[i].getIndex(), pose_2[i].getIndex());
+            pair.setIndex(pose_1[i].getIndex(), pose_2[j].getIndex());
             pair.setCam(pose_1[i].getCameraID(), pose_2[j].getCameraID());
 
             this->pose_pairs.push_back(pair);
@@ -340,6 +353,7 @@ void Associate::fusionOfEachPose(list<PosePair> &pairs, Pose& pose, vector<Pose>
     if(pairs.empty())
         return;
 
+    static double threshold = 3.0;
     for(auto it = pairs.begin(); it != pairs.end(); ++it){
         calculateCorrespondence(*it, 2.0, true);
     }
@@ -357,6 +371,9 @@ void Associate::fusionOfEachPose(list<PosePair> &pairs, Pose& pose, vector<Pose>
 
     auto rank_min = min_element(pairs.begin(), pairs.end(), PosePair::comp);
 
+    if(rank_min->getDelta() > threshold)
+        return;
+        
     if(pose.getLabel() > 0)
         this->inputs[target][(*rank_min).getIndex_2()].setLabel((*rank_min).getLabel_1());
     else{
@@ -494,55 +511,52 @@ vector<pair<int, int> > Associate::extract2DAssociation(){
     return pose_ass;
 }
 
-vector<vector<int>> Associate::extractAssociationResults(){
+vector<pair<int, int> > Associate::extractAssociationInc(const vector<Pose> &pose_tmp, const int target){
     // 从pose_tmp中提取姿态信息
 
-    map<int, int> PoseList;
-    vector<vector<int> > pose_ass;
-    int id_ite = 0;
+    vector<pair<int, int> > pose_ass;
+
     for(int i = 0; i < this->pose_tmp.size(); ++i) {
-        if(this->pose_tmp[i].getLabel() > 0) {
-            int label = this->pose_tmp[i].getLabel();
-            if (PoseList.find(label) == PoseList.end()) {
-                PoseList[label] = id_ite;
-                pose_ass.resize(id_ite+1);
-                pose_ass[id_ite].push_back(i);
-                id_ite++;
-            }
-            else {
-                pose_ass[PoseList[label]].push_back(i);
+        Pose pose_1 = this->pose_tmp[i];
+        if(pose_1.getLabel() < 0) continue;
+
+        for(int j = 0; j < this->inputs[target].size(); ++j){
+            Pose pose_2 = this->inputs[target][j];
+            if(pose_2.getLabel() < 0) continue;
+
+            if(pose_1.getLabel() == pose_2.getLabel()){
+                pose_ass.emplace_back(std::pair<int, int>(i, j));
             }
         }
     }
 
-    //ROS_INFO("Pose generated: %d", (int)pose_ass.size());
+    ROS_INFO("Pose generated: %d", (int)pose_ass.size());
     return pose_ass;
-
 }
 
-vector<AssPair> Associate::extract2DAssociation(const vector<Pose> &pose_tmp, const int target){
-    if(pose_tmp.empty() || this->inputs[target].empty())
+vector<AssPair> Associate::extract2DAssociation(const vector<Pose> &pose_tmp){
+    if(pose_tmp.empty())
         return {};
 
-    vector<Pose> tmp;
-    for(auto &it : pose_tmp){
-        tmp.push_back(it);
-    }
+    // vector<Pose> tmp;
+    // for(auto &it : pose_tmp){
+    //     tmp.push_back(it);
+    // }
 
-    for(auto & it : this->inputs[target]){
-        tmp.push_back(it);
-    }
+    // for(auto & it : this->inputs[target]){
+    //     tmp.push_back(it);
+    // }
 
 
     vector<AssPair> pose_ass;
     map<int, int> PoseList; // tmp index, target index
 
     int id_ite = 0;
-    for(int i = 0; i < tmp.size(); ++i) {
-        if(tmp[i].getLabel() >= 0) {
-            int cam = tmp[i].getCameraID();
-            int label = tmp[i].getLabel();
-            int index = tmp[i].getIndex();
+    for(int i = 0; i < pose_tmp.size(); ++i) {
+        if(pose_tmp[i].getLabel() >= 0) {
+            int cam = pose_tmp[i].getCameraID();
+            int label = pose_tmp[i].getLabel();
+            int index = pose_tmp[i].getIndex();
             if (PoseList.find(label) == PoseList.end()) {
                 PoseList[label] = id_ite;
                 pose_ass.resize(id_ite+1);
@@ -812,7 +826,7 @@ void Associate::triangularization(const vector<pair<int, int> > &pose_ass, const
 
     for(auto it : pose_ass){
         if(inc){
-
+            triangulatePose(it, reference, target, true);
         }else{
             triangulatePose(it, reference, target);
         }
@@ -820,9 +834,16 @@ void Associate::triangularization(const vector<pair<int, int> > &pose_ass, const
 }
 
 
-void Associate::triangulatePose(const pair<int, int> & it, const int reference, const int target){
-    vector<Joint_2d> pose_2d_1 = this->inputs[reference][it.first].get2DPose();
-    vector<Joint_2d> pose_2d_2 = this->inputs[target][it.second].get2DPose();
+void Associate::triangulatePose(const pair<int, int> & it, const int reference, const int target, bool inc){
+    vector<Joint_2d> pose_2d_1, pose_2d_2;
+    
+    if(inc){
+        pose_2d_1 = this->pose_tmp[it.first].get2DPose();
+    }else{
+        pose_2d_1 = this->inputs[reference][it.first].get2DPose();
+    }
+    
+    pose_2d_2 = this->inputs[target][it.second].get2DPose();
 
     vector<double> depths[2];
     for(int i=0; i<pose_2d_1.size(); ++i){
@@ -840,7 +861,12 @@ void Associate::triangulatePose(const pair<int, int> & it, const int reference, 
         depths[1].push_back(depth[1]);
     }
 
-    this->inputs[reference][it.first].update3DPose(depths[0], this->cameras[reference], false);
+    if(inc){
+        this->pose_tmp[it.first].update3DPose(depths[0], this->cameras[reference], false);
+    }else{
+        this->inputs[reference][it.first].update3DPose(depths[0], this->cameras[reference], false);
+    }
+
     this->inputs[target][it.second].update3DPose(depths[1], this->cameras[target], false);
 }
 

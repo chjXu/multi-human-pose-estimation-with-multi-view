@@ -1,7 +1,7 @@
 /*
  * @Author: your name
  * @Date: 2021-07-14 12:52:53
- * @LastEditTime: 2022-01-05 21:44:21
+ * @LastEditTime: 2022-01-06 16:22:10
  * @LastEditors: Please set LastEditors
  * @Description: 打开koroFileHeader查看配置 进行设置: https://github.com/OBKoro1/koro1FileHeader/wiki/%E9%85%8D%E7%BD%AE
  * @FilePath: /multi_human_estimation/include/multi_human_estimation/associate.h
@@ -187,7 +187,7 @@ protected:
      * @param {*}
      * @return {*}
      */    
-    vector<vector<int>> extractAssociationResults();
+    vector<pair<int, int> > extractAssociationInc(const vector<Pose> &, const int target);
 
     /**
      * @description: 
@@ -195,7 +195,7 @@ protected:
      * @param {int} target
      * @return {*}
      */    
-    vector<AssPair> extract2DAssociation(const vector<Pose> &, const int target);
+    vector<AssPair> extract2DAssociation(const vector<Pose> &);
 
     /**
      * @description:计算正确配对姿态的3D姿态
@@ -221,7 +221,7 @@ protected:
      * @param {int} target
      * @return {*}
      */    
-    void triangulatePose(const pair<int, int> &, const int reference, const int target);
+    void triangulatePose(const pair<int, int> &, const int reference, const int target, bool inc = false);
     
     /**
      * @description: 
